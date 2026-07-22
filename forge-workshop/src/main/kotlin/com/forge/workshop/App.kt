@@ -21,31 +21,30 @@ import com.forge.workshop.foundry.FoundryScreen
 import com.forge.workshop.foundry.SkillSpec
 import com.forge.workshop.nav.NavItem
 import com.forge.workshop.nav.NavRail
+import com.forge.workshop.runner.RunnerScreen
 import com.forge.workshop.theme.forgeColors
 
-/** Root of the main Workshop window: nav rail + the selected screen. */
+/** Root of the main Workshop window: nav rail + the selected screen (or a running Skill). */
 @Composable
 fun WorkshopApp() {
     var selected by remember { mutableStateOf(NavItem.FOUNDRY) }
+    var running by remember { mutableStateOf<SkillSpec?>(null) }
 
     Surface(color = forgeColors.ground, modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxSize()) {
-            NavRail(selected) { selected = it }
+            NavRail(selected) { selected = it; running = null }
             Box(Modifier.width(1.dp).fillMaxHeight().background(forgeColors.border))
             Box(Modifier.weight(1f).fillMaxHeight()) {
-                when (selected) {
-                    NavItem.FOUNDRY -> FoundryScreen(onRun = ::onRunSkill)
-                    NavItem.HISTORY -> Placeholder("History — скоро")
-                    NavItem.INTEGRATIONS -> Placeholder("Integrations — скоро")
+                val current = running
+                when {
+                    current != null -> RunnerScreen(current, onBack = { running = null })
+                    selected == NavItem.FOUNDRY -> FoundryScreen(onRun = { running = it })
+                    selected == NavItem.HISTORY -> Placeholder("History — скоро")
+                    else -> Placeholder("Integrations — скоро")
                 }
             }
         }
     }
-}
-
-/** Step 3 wires this to the Skill Runner + MasterGate; for now it is a no-op landing point. */
-private fun onRunSkill(skill: SkillSpec) {
-    // TODO(P4 step 3): open Skill Runner for `skill`
 }
 
 @Composable

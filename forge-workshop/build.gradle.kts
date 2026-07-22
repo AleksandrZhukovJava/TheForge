@@ -17,6 +17,7 @@ dependencies {
     implementation(project(":forge-sdk"))
     implementation(project(":forge-brain"))
     implementation(project(":forge-executors"))
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
 }
 
 compose.desktop {

@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.forge.workshop.theme.forgeColors
+import com.forge.workshop.ui.execColor
 
 @Composable
 fun FoundryScreen(onRun: (SkillSpec) -> Unit) {
@@ -70,7 +71,7 @@ private fun SkillCard(skill: SkillSpec, onRun: (SkillSpec) -> Unit) {
 
 @Composable
 private fun ExecChip(tag: ExecTag) {
-    val c = tag.color()
+    val c = execColor(tag)
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(5.dp))
@@ -92,12 +93,4 @@ private fun RunButton(onClick: () -> Unit) {
     ) {
         Text("Запустить", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     }
-}
-
-@Composable
-private fun ExecTag.color(): Color = when (this) {
-    ExecTag.TOOL -> forgeColors.tool
-    ExecTag.PRESS -> forgeColors.press
-    ExecTag.MASTER -> forgeColors.master
-    ExecTag.SMITH -> forgeColors.smith
 }
