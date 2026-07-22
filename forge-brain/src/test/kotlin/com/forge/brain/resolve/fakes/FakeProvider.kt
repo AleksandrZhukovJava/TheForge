@@ -26,5 +26,5 @@ class FakeProvider(
     override fun canHandle(strike: StrikeDecl, stock: Stock): Boolean = canHandleFn(strike, stock)
 
     override suspend fun execute(strike: StrikeDecl, stock: Stock): StrikeResult =
-        StrikeResult(strike.id, output = "${id}:done")
+        StrikeResult(strike.id, output = "${id.value}:done")
 }
