@@ -44,7 +44,11 @@ import kotlinx.coroutines.launch
 private data class Field(val label: String, val key: String, val secret: Boolean = false)
 
 @Composable
-fun IntegrationsScreen(secrets: SecretStore) {
+fun IntegrationsScreen(
+    secrets: SecretStore,
+    refreshMinutes: Int,
+    onIntervalChange: (Int) -> Unit,
+) {
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
     ) {
@@ -56,6 +60,9 @@ fun IntegrationsScreen(secrets: SecretStore) {
             fontSize = 13.sp,
         )
         Spacer(Modifier.height(18.dp))
+
+        RefreshCard(refreshMinutes, onIntervalChange)
+        Spacer(Modifier.height(12.dp))
 
         IntegrationCard(
             title = "Jira",
@@ -79,6 +86,49 @@ fun IntegrationsScreen(secrets: SecretStore) {
             requiredKey = "gitlab.token",
             secrets = secrets,
         )
+    }
+}
+
+@Composable
+private fun RefreshCard(refreshMinutes: Int, onIntervalChange: (Int) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(forgeColors.surface2)
+            .border(1.dp, forgeColors.border, RoundedCornerShape(12.dp))
+            .padding(18.dp),
+    ) {
+        Text("Обновление", color = forgeColors.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Как часто виджет тянет данные (опрос идёт только когда виджет виден).",
+            color = forgeColors.inkFaint,
+            fontSize = 12.sp,
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(1, 3, 5, 15, 30).forEach { m ->
+                IntervalChip(m, selected = m == refreshMinutes) { onIntervalChange(m) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun IntervalChip(minutes: Int, selected: Boolean, onClick: () -> Unit) {
+    val fg = if (selected) Color.White else forgeColors.inkMuted
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .then(
+                if (selected) Modifier.background(forgeColors.ember)
+                else Modifier.border(1.dp, forgeColors.borderStrong, RoundedCornerShape(8.dp)),
+            )
+            .clickable { onClick() }
+            .padding(horizontal = 13.dp, vertical = 8.dp),
+    ) {
+        Text("$minutes мин", color = fg, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
     }
 }
 

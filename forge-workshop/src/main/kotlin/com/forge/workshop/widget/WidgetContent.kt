@@ -37,6 +37,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.forge.workshop.dashboard.DashboardData
+import com.forge.workshop.dashboard.DashboardState
 import com.forge.workshop.nav.Spark
 import com.forge.workshop.theme.forgeColors
 import com.forge.workshop.ui.PillStatus
@@ -44,11 +46,12 @@ import com.forge.workshop.ui.StatusPill
 
 /**
  * Standalone compact widget: a narrow bar by default, expands on hover to reveal cards.
- * The window is transparent, so the collapsed state shows only the bar.
+ * Data comes from [DashboardState]; the bar shows live counts and the expanded view scrolls
+ * long lists only when they overflow.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun WidgetPanel(onMoveBy: (Int, Int) -> Unit) {
+fun WidgetPanel(state: DashboardState, onRefresh: () -> Unit, onMoveBy: (Int, Int) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
         Column(
@@ -60,11 +63,11 @@ fun WidgetPanel(onMoveBy: (Int, Int) -> Unit) {
                 .onPointerEvent(PointerEventType.Enter) { expanded = true }
                 .onPointerEvent(PointerEventType.Exit) { expanded = false },
         ) {
-            // The bar is the drag handle. Move by the SCREEN-space cursor delta so the window's own
-            // motion never feeds back into the calculation (that was the jitter).
             WidgetBar(
+                state = state,
                 expanded = expanded,
-                modifier = Modifier.pointerInput(Unit) {
+                onRefresh = onRefresh,
+                dragModifier = Modifier.pointerInput(Unit) {
                     var last: java.awt.Point? = null
                     detectDragGestures(
                         onDragStart = { last = java.awt.MouseInfo.getPointerInfo()?.location },
@@ -74,35 +77,45 @@ fun WidgetPanel(onMoveBy: (Int, Int) -> Unit) {
                             change.consume()
                             val cur = java.awt.MouseInfo.getPointerInfo()?.location
                             val prev = last
-                            if (cur != null && prev != null) {
-                                onMoveBy(cur.x - prev.x, cur.y - prev.y)
-                            }
+                            if (cur != null && prev != null) onMoveBy(cur.x - prev.x, cur.y - prev.y)
                             if (cur != null) last = cur
                         },
                     )
                 },
             )
-            AnimatedVisibility(expanded) { WidgetBody() }
+            AnimatedVisibility(expanded) { WidgetBody(state) }
         }
     }
 }
 
+private fun failing(data: DashboardData): Int = data.pipelines.count { it.status == PillStatus.FAILED }
+
 @Composable
-private fun WidgetBar(expanded: Boolean, modifier: Modifier = Modifier) {
+private fun WidgetBar(state: DashboardState, expanded: Boolean, onRefresh: () -> Unit, dragModifier: Modifier) {
+    val data = (state as? DashboardState.Loaded)?.data
     Row(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 10.dp),
+        modifier = dragModifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Spark(18.dp)
         Spacer(Modifier.width(9.dp))
         Text("The Forge", color = forgeColors.ink, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
-        MiniStat("6", "задач")
+        MiniStat(data?.jira?.size?.toString() ?: "–", "задач")
         Spacer(Modifier.width(9.dp))
-        MiniStat("3", "MR")
-        Spacer(Modifier.width(9.dp))
-        Box(Modifier.size(8.dp).clip(RoundedCornerShape(999.dp)).background(forgeColors.crit))
-        Spacer(Modifier.width(9.dp))
+        MiniStat(data?.mrs?.size?.toString() ?: "–", "MR")
+        if (data != null && failing(data) > 0) {
+            Spacer(Modifier.width(9.dp))
+            Box(Modifier.size(8.dp).clip(RoundedCornerShape(999.dp)).background(forgeColors.crit))
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(
+            "⟳",
+            color = forgeColors.inkMuted,
+            fontSize = 13.sp,
+            modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { onRefresh() }.padding(2.dp),
+        )
+        Spacer(Modifier.width(6.dp))
         Text(if (expanded) "▲" else "▼", color = forgeColors.inkFaint, fontSize = 10.sp)
     }
 }
@@ -117,15 +130,28 @@ private fun MiniStat(value: String, label: String) {
 }
 
 @Composable
-private fun WidgetBody() {
+private fun WidgetBody(state: DashboardState) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(start = 11.dp, end = 11.dp, bottom = 11.dp),
         verticalArrangement = Arrangement.spacedBy(9.dp),
     ) {
-        WidgetCard("Мои Jira-задачи", forgeColors.tool, "+ создать", jiraRows)
-        WidgetCard("Мои Merge Requests", forgeColors.press, "+ открыть MR", mrRows)
-        WidgetCard("Пайплайны", forgeColors.master, null, pipelineRows)
+        when (state) {
+            is DashboardState.Loaded -> {
+                WidgetCard("Мои Jira-задачи", forgeColors.tool, "+ создать", state.data.jira)
+                WidgetCard("Мои Merge Requests", forgeColors.press, "+ открыть MR", state.data.mrs)
+                WidgetCard("Пайплайны", forgeColors.master, null, state.data.pipelines)
+                Text("обновлено ${state.updatedAt}", color = forgeColors.inkFaint, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            }
+            DashboardState.Loading -> HintLine("загрузка…")
+            is DashboardState.Error -> HintLine("ошибка: ${state.message}", forgeColors.crit)
+            DashboardState.NotConfigured -> HintLine("подключите Jira/GitLab в Integrations")
+        }
     }
+}
+
+@Composable
+private fun HintLine(text: String, color: Color = forgeColors.inkMuted) {
+    Text(text, color = color, fontSize = 12.sp, modifier = Modifier.padding(vertical = 10.dp))
 }
 
 @Composable
@@ -175,7 +201,8 @@ private fun WidgetRow(row: WRow) {
 
 /** The tray popover — separate from the Widget: quick glance + run. */
 @Composable
-fun TrayPopover(onRun: () -> Unit) {
+fun TrayPopover(state: DashboardState, onRun: () -> Unit, onRefresh: () -> Unit) {
+    val data = (state as? DashboardState.Loaded)?.data
     Box(Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -191,15 +218,22 @@ fun TrayPopover(onRun: () -> Unit) {
                 Spark(18.dp)
                 Spacer(Modifier.width(10.dp))
                 Text("The Forge", color = forgeColors.ink, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "⟳",
+                    color = forgeColors.inkMuted,
+                    fontSize = 14.sp,
+                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { onRefresh() }.padding(2.dp),
+                )
             }
             Box(Modifier.fillMaxWidth().size(1.dp).background(forgeColors.border))
             Row(Modifier.fillMaxWidth().padding(13.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                TrayStat("6", "задач")
-                TrayStat("3", "MR")
-                TrayStat("1", "упал CI", forgeColors.crit)
+                TrayStat(data?.jira?.size?.toString() ?: "–", "задач")
+                TrayStat(data?.mrs?.size?.toString() ?: "–", "MR")
+                TrayStat(data?.let { failing(it).toString() } ?: "–", "упал CI", forgeColors.crit)
             }
             Column {
-                jiraRows.take(3).forEach { WidgetRow(it) }
+                (data?.jira ?: emptyList()).take(3).forEach { WidgetRow(it) }
             }
             Box(Modifier.fillMaxWidth().size(1.dp).background(forgeColors.border))
             Box(Modifier.fillMaxWidth().padding(13.dp)) {

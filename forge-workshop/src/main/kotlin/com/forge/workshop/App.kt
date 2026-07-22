@@ -17,7 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.forge.executors.secret.InMemorySecretStore
+import com.forge.sdk.secret.SecretStore
 import com.forge.workshop.foundry.FoundryScreen
 import com.forge.workshop.foundry.SkillSpec
 import com.forge.workshop.integrations.IntegrationsScreen
@@ -28,11 +28,13 @@ import com.forge.workshop.theme.forgeColors
 
 /** Root of the main Workshop window: nav rail + the selected screen (or a running Skill). */
 @Composable
-fun WorkshopApp() {
+fun WorkshopApp(
+    secrets: SecretStore,
+    refreshMinutes: Int,
+    onIntervalChange: (Int) -> Unit,
+) {
     var selected by remember { mutableStateOf(NavItem.FOUNDRY) }
     var running by remember { mutableStateOf<SkillSpec?>(null) }
-    // Session secret store (dev). Swapped for an OS-keychain-backed store at packaging.
-    val secrets = remember { InMemorySecretStore() }
 
     Surface(color = forgeColors.ground, modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxSize()) {
@@ -44,7 +46,7 @@ fun WorkshopApp() {
                     current != null -> RunnerScreen(current, onBack = { running = null })
                     selected == NavItem.FOUNDRY -> FoundryScreen(onRun = { running = it })
                     selected == NavItem.HISTORY -> Placeholder("History — скоро")
-                    else -> IntegrationsScreen(secrets)
+                    else -> IntegrationsScreen(secrets, refreshMinutes, onIntervalChange)
                 }
             }
         }
