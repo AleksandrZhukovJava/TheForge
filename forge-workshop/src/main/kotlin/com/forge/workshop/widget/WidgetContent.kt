@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,9 +29,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -46,7 +49,7 @@ import com.forge.workshop.ui.StatusPill
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun WidgetPanel() {
+fun WidgetPanel(onDrag: (Offset) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
         Column(
@@ -58,16 +61,25 @@ fun WidgetPanel() {
                 .onPointerEvent(PointerEventType.Enter) { expanded = true }
                 .onPointerEvent(PointerEventType.Exit) { expanded = false },
         ) {
-            WidgetBar(expanded)
+            // The bar is the drag handle — grab it to move the window.
+            WidgetBar(
+                expanded = expanded,
+                modifier = Modifier.pointerInput(Unit) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        onDrag(dragAmount)
+                    }
+                },
+            )
             AnimatedVisibility(expanded) { WidgetBody() }
         }
     }
 }
 
 @Composable
-private fun WidgetBar(expanded: Boolean) {
+private fun WidgetBar(expanded: Boolean, modifier: Modifier = Modifier) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 10.dp),
+        modifier = modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Spark(18.dp)
