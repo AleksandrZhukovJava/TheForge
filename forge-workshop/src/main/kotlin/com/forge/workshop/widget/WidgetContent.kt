@@ -29,7 +29,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
@@ -49,7 +48,7 @@ import com.forge.workshop.ui.StatusPill
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun WidgetPanel(onDrag: (Offset) -> Unit) {
+fun WidgetPanel(onMoveBy: (Int, Int) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
         Column(
@@ -61,14 +60,26 @@ fun WidgetPanel(onDrag: (Offset) -> Unit) {
                 .onPointerEvent(PointerEventType.Enter) { expanded = true }
                 .onPointerEvent(PointerEventType.Exit) { expanded = false },
         ) {
-            // The bar is the drag handle — grab it to move the window.
+            // The bar is the drag handle. Move by the SCREEN-space cursor delta so the window's own
+            // motion never feeds back into the calculation (that was the jitter).
             WidgetBar(
                 expanded = expanded,
                 modifier = Modifier.pointerInput(Unit) {
-                    detectDragGestures { change, dragAmount ->
-                        change.consume()
-                        onDrag(dragAmount)
-                    }
+                    var last: java.awt.Point? = null
+                    detectDragGestures(
+                        onDragStart = { last = java.awt.MouseInfo.getPointerInfo()?.location },
+                        onDragEnd = { last = null },
+                        onDragCancel = { last = null },
+                        onDrag = { change, _ ->
+                            change.consume()
+                            val cur = java.awt.MouseInfo.getPointerInfo()?.location
+                            val prev = last
+                            if (cur != null && prev != null) {
+                                onMoveBy(cur.x - prev.x, cur.y - prev.y)
+                            }
+                            if (cur != null) last = cur
+                        },
+                    )
                 },
             )
             AnimatedVisibility(expanded) { WidgetBody() }

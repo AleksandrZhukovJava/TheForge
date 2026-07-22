@@ -56,14 +56,11 @@ fun main() = application {
             resizable = false,
             alwaysOnTop = true,
         ) {
-            // Undecorated window: drag the bar to move the AWT window.
+            // Undecorated window: drag the bar to move the AWT window by the screen-space delta.
             val awtWindow = window
             ForgeTheme {
-                WidgetPanel(onDrag = { delta ->
-                    awtWindow.setLocation(
-                        awtWindow.x + delta.x.toInt(),
-                        awtWindow.y + delta.y.toInt(),
-                    )
+                WidgetPanel(onMoveBy = { dx, dy ->
+                    awtWindow.setLocation(awtWindow.x + dx, awtWindow.y + dy)
                 })
             }
         }
