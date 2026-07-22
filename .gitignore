@@ -1,0 +1,27 @@
+# Gradle
+.gradle/
+build/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Claude Code local harness config
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local secrets / config
+*.local
+
+# --- Not part of The Forge (this dir is a shared session scratchpad) ---
+jira-widget/
+*.zip
+*_preview.png
+barracks_*.png
+city_sim_extract/
+lpc_barracks/
+lpc_barracks_45/

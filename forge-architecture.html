@@ -1,0 +1,637 @@
+<title>The Forge — Архитектура платформы</title>
+<style>
+  /* ============ TOKENS ============ */
+  :root {
+    /* light theme — "холодная сталь, дневной свет мастерской" */
+    --ground: #E7E3DD;
+    --surface-1: #F1EEE9;
+    --surface-2: #FBFAF7;
+    --ink: #211C18;
+    --ink-muted: #5B524A;
+    --ink-faint: #8B8078;
+    --border: #D3CCC3;
+    --border-strong: #B7AEA4;
+    --ember: #C64C16;
+    --ember-hot: #D9871F;
+    --ember-glow: rgba(198,76,22,0.10);
+    --tool: #2C74A2;
+    --script: #9E6428;
+    --human: #64539C;
+    --smith: #C64C16;
+    --good: #3E8B58;
+    --crit: #C0392B;
+    --shadow: 0 1px 2px rgba(30,22,16,.06), 0 8px 24px rgba(30,22,16,.06);
+    --shadow-lift: 0 2px 6px rgba(30,22,16,.10), 0 20px 44px rgba(30,22,16,.12);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #14110F;
+      --surface-1: #1D1916;
+      --surface-2: #262019;
+      --ink: #ECE4DB;
+      --ink-muted: #A99D90;
+      --ink-faint: #6E655C;
+      --border: #332C27;
+      --border-strong: #4A423B;
+      --ember: #FF7A34;
+      --ember-hot: #FFB347;
+      --ember-glow: rgba(255,122,52,0.14);
+      --tool: #5FA8D6;
+      --script: #CB965A;
+      --human: #A493D4;
+      --smith: #FF7A34;
+      --good: #56B473;
+      --crit: #E4665A;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+      --shadow-lift: 0 2px 8px rgba(0,0,0,.5), 0 24px 50px rgba(0,0,0,.45);
+      color-scheme: dark;
+    }
+  }
+  /* explicit toggle overrides (must win both ways) */
+  :root[data-theme="light"] {
+    --ground: #E7E3DD; --surface-1: #F1EEE9; --surface-2: #FBFAF7;
+    --ink: #211C18; --ink-muted: #5B524A; --ink-faint: #8B8078;
+    --border: #D3CCC3; --border-strong: #B7AEA4;
+    --ember: #C64C16; --ember-hot: #D9871F; --ember-glow: rgba(198,76,22,0.10);
+    --tool: #2C74A2; --script: #9E6428; --human: #64539C; --smith: #C64C16;
+    --good: #3E8B58; --crit: #C0392B;
+    --shadow: 0 1px 2px rgba(30,22,16,.06), 0 8px 24px rgba(30,22,16,.06);
+    --shadow-lift: 0 2px 6px rgba(30,22,16,.10), 0 20px 44px rgba(30,22,16,.12);
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --ground: #14110F; --surface-1: #1D1916; --surface-2: #262019;
+    --ink: #ECE4DB; --ink-muted: #A99D90; --ink-faint: #6E655C;
+    --border: #332C27; --border-strong: #4A423B;
+    --ember: #FF7A34; --ember-hot: #FFB347; --ember-glow: rgba(255,122,52,0.14);
+    --tool: #5FA8D6; --script: #CB965A; --human: #A493D4; --smith: #FF7A34;
+    --good: #56B473; --crit: #E4665A;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+    --shadow-lift: 0 2px 8px rgba(0,0,0,.5), 0 24px 50px rgba(0,0,0,.45);
+    color-scheme: dark;
+  }
+
+  /* ============ BASE ============ */
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .mono {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 0 24px; }
+
+  h1, h2, h3 { text-wrap: balance; margin: 0; font-weight: 800; letter-spacing: -0.02em; }
+  p { margin: 0; }
+  a { color: var(--ember); }
+
+  .eyebrow {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  /* ============ HERO ============ */
+  .hero {
+    position: relative;
+    padding: 92px 0 64px;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+  }
+  .hero::before {
+    content: "";
+    position: absolute;
+    top: -180px; left: 50%; transform: translateX(-50%);
+    width: 780px; height: 460px;
+    background: radial-gradient(ellipse at center, var(--ember-glow) 0%, transparent 68%);
+    pointer-events: none;
+    animation: emberPulse 7s ease-in-out infinite;
+  }
+  @keyframes emberPulse {
+    0%, 100% { opacity: .6; }
+    50% { opacity: 1; }
+  }
+  .hero .wrap { position: relative; }
+  .brandline { display: flex; align-items: center; gap: 14px; margin-bottom: 26px; }
+  .spark {
+    width: 30px; height: 30px; flex: none; border-radius: 7px;
+    background: linear-gradient(150deg, var(--ember-hot), var(--ember));
+    box-shadow: 0 0 22px -2px var(--ember);
+    position: relative;
+  }
+  .spark::after {
+    content: ""; position: absolute; inset: 8px;
+    border-radius: 3px; background: var(--surface-2); opacity: .18;
+  }
+  .brandline .name {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-muted); font-weight: 600;
+  }
+  .hero h1 {
+    font-size: clamp(46px, 8vw, 92px);
+    line-height: 0.98;
+    letter-spacing: -0.04em;
+  }
+  .hero h1 .molten {
+    background: linear-gradient(120deg, var(--ember-hot), var(--ember));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .tagline {
+    margin-top: 20px; font-size: clamp(18px, 2.4vw, 22px);
+    color: var(--ink-muted); max-width: 30ch; font-weight: 400;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 32px; }
+  .chip {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px; letter-spacing: 0.02em;
+    padding: 7px 13px; border-radius: 999px;
+    border: 1px solid var(--border-strong); color: var(--ink-muted);
+    background: var(--surface-2);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .chip b { color: var(--ink); font-weight: 600; }
+  .chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ember); }
+
+  /* ============ SECTION ============ */
+  section { padding: 62px 0; border-bottom: 1px solid var(--border); }
+  .sec-head { margin-bottom: 34px; }
+  .sec-head .eyebrow { display: block; margin-bottom: 12px; }
+  .sec-head h2 { font-size: clamp(26px, 4vw, 36px); line-height: 1.08; }
+  .sec-head .lede { margin-top: 14px; color: var(--ink-muted); max-width: 66ch; font-size: 17px; }
+
+  /* ============ PRINCIPLES ============ */
+  .principles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .principle {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px 18px 20px;
+  }
+  .principle .k { font-weight: 700; font-size: 15.5px; letter-spacing: -0.01em; margin-bottom: 6px; }
+  .principle .v { font-size: 13.5px; color: var(--ink-muted); line-height: 1.5; }
+
+  /* ============ LAYER FLOW ============ */
+  .flow { display: flex; flex-direction: column; align-items: stretch; gap: 0; }
+  .node {
+    background: var(--surface-2); border: 1px solid var(--border-strong);
+    border-radius: 12px; padding: 16px 20px; box-shadow: var(--shadow);
+    text-align: center;
+  }
+  .node .nk { font-weight: 700; font-size: 17px; letter-spacing: -0.01em; }
+  .node .nd { font-size: 13px; color: var(--ink-muted); margin-top: 3px; }
+  .node.accent { border-color: var(--ember); }
+  .node.accent .nk { color: var(--ember); }
+  .arrow { height: 26px; width: 2px; background: var(--border-strong); margin: 0 auto; position: relative; }
+  .arrow::after {
+    content: ""; position: absolute; bottom: -1px; left: 50%; transform: translateX(-50%);
+    border-left: 5px solid transparent; border-right: 5px solid transparent;
+    border-top: 6px solid var(--border-strong);
+  }
+  .branch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .branch .node { text-align: left; }
+  .foundation {
+    margin-top: 22px;
+    background: linear-gradient(180deg, var(--surface-1), var(--surface-2));
+    border: 1px dashed var(--border-strong); border-radius: 12px;
+    padding: 18px 22px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .foundation .lbl {
+    font-weight: 800; color: var(--ink); letter-spacing: -0.01em; font-size: 16px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .foundation .lbl-sub { color: var(--ink-faint); font-size: 12.5px; }
+  .foundation .items { display: flex; flex-wrap: wrap; gap: 7px; margin-left: auto; }
+  .foundation .items span {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11.5px; padding: 4px 9px; border-radius: 6px;
+    background: var(--ground); border: 1px solid var(--border); color: var(--ink-muted);
+  }
+
+  /* ============ HEAT LADDER ============ */
+  .ladder-frame { display: grid; grid-template-columns: 1fr; gap: 10px; position: relative; }
+  .ladder-axis {
+    display: flex; justify-content: space-between; margin-bottom: 4px;
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint);
+  }
+  .tier {
+    display: grid; grid-template-columns: 42px 1fr; gap: 0;
+    border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+    background: var(--surface-1);
+  }
+  .tier .heat { position: relative; }
+  .tier .body { padding: 15px 18px; }
+  .tier .th { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .tier .th .name { font-weight: 800; font-size: 17px; letter-spacing: -0.01em; }
+  .tier .th .role { font-size: 13px; color: var(--ink-muted); }
+  .tier .ex {
+    margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .tier .ex span {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11.5px; color: var(--ink-muted);
+    background: var(--surface-2); border: 1px solid var(--border);
+    padding: 3px 8px; border-radius: 6px;
+  }
+  .tier[data-x="tool"] .heat { background: linear-gradient(180deg, var(--tool), color-mix(in srgb, var(--tool) 55%, transparent)); }
+  .tier[data-x="script"] .heat { background: linear-gradient(180deg, var(--script), color-mix(in srgb, var(--script) 55%, transparent)); }
+  .tier[data-x="human"] .heat { background: linear-gradient(180deg, var(--human), color-mix(in srgb, var(--human) 55%, transparent)); }
+  .tier[data-x="smith"] .heat { background: linear-gradient(180deg, var(--ember-hot), var(--smith)); }
+  .tier[data-x="tool"] .name { color: var(--tool); }
+  .tier[data-x="script"] .name { color: var(--script); }
+  .tier[data-x="human"] .name { color: var(--human); }
+  .tier[data-x="smith"] .name { color: var(--smith); }
+  .tier[data-x="smith"] { border-color: color-mix(in srgb, var(--smith) 45%, var(--border)); }
+  .tag-last {
+    font-family: ui-monospace, monospace; font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--smith); border: 1px solid color-mix(in srgb, var(--smith) 40%, var(--border));
+    padding: 2px 7px; border-radius: 5px; font-weight: 600;
+  }
+
+  /* ============ RULE ============ */
+  .rule {
+    margin-top: 24px; background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px 22px;
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px; line-height: 1.85; overflow-x: auto;
+  }
+  .rule .cm { color: var(--ink-faint); }
+  .rule .kw { color: var(--ember); }
+  .rule .tl { color: var(--tool); font-weight: 600; }
+  .rule .sm { color: var(--smith); font-weight: 600; }
+
+  /* ============ ANVIL SOURCES ============ */
+  .sources { display: flex; flex-wrap: wrap; gap: 9px; }
+  .src {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px; padding: 9px 14px; border-radius: 9px;
+    background: var(--surface-1); border: 1px solid var(--border); color: var(--ink);
+    display: inline-flex; align-items: center; gap: 9px;
+  }
+  .src .b { width: 8px; height: 8px; border-radius: 2px; background: var(--tool); flex: none; }
+  .src.mvp { border-color: color-mix(in srgb, var(--ember) 45%, var(--border)); }
+  .src.mvp .b { background: var(--ember); }
+  .src-note { margin-top: 14px; font-size: 13px; color: var(--ink-muted); }
+
+  /* ============ REVIEW PR STEPPER ============ */
+  .stepper { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+  .step {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-top: 3px solid var(--ink-faint); border-radius: 10px;
+    padding: 13px 12px 14px; position: relative;
+  }
+  .step .si { font-family: ui-monospace, monospace; font-size: 10.5px; color: var(--ink-faint); }
+  .step .st { font-weight: 700; font-size: 14px; margin-top: 5px; line-height: 1.25; letter-spacing: -0.01em; }
+  .step .se { font-family: ui-monospace, monospace; font-size: 11px; margin-top: 8px; color: var(--ink-muted); }
+  .step[data-x="tool"] { border-top-color: var(--tool); }
+  .step[data-x="tool"] .se { color: var(--tool); }
+  .step[data-x="mem"] { border-top-color: var(--human); }
+  .step[data-x="mem"] .se { color: var(--human); }
+  .step[data-x="smith"] { border-top-color: var(--smith); }
+  .step[data-x="smith"] .se { color: var(--smith); }
+  .step .confirm {
+    display: inline-block; margin-top: 7px;
+    font-family: ui-monospace, monospace; font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--crit); border: 1px solid color-mix(in srgb, var(--crit) 40%, var(--border));
+    padding: 2px 6px; border-radius: 5px;
+  }
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 18px; font-size: 12.5px; color: var(--ink-muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .legend i { width: 11px; height: 3px; border-radius: 2px; display: inline-block; }
+
+  /* ============ MODULE TREE ============ */
+  .tree {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 22px 24px; overflow-x: auto;
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px; line-height: 1.75;
+  }
+  .tree .dir { color: var(--ink); font-weight: 600; }
+  .tree .plug { color: var(--ember); }
+  .tree .cm { color: var(--ink-faint); }
+  .tree .tw { color: var(--border-strong); }
+
+  /* ============ DECISIONS ============ */
+  .decisions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .dec {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px 20px;
+    border-left: 3px solid var(--ember);
+  }
+  .dec .q { font-family: ui-monospace, monospace; font-size: 11.5px; letter-spacing: 0.06em; color: var(--ink-faint); }
+  .dec .topic { font-size: 13px; color: var(--ink-muted); margin-top: 2px; }
+  .dec .verdict { font-weight: 800; font-size: 16px; letter-spacing: -0.01em; margin-top: 9px; color: var(--ink); }
+  .dec .why { font-size: 13px; color: var(--ink-muted); margin-top: 7px; line-height: 1.5; }
+
+  /* ============ PHASES ============ */
+  .phases { display: flex; flex-direction: column; gap: 2px; }
+  .phase {
+    display: grid; grid-template-columns: 62px 1fr; gap: 18px;
+    padding: 16px 4px; border-bottom: 1px solid var(--border); align-items: start;
+  }
+  .phase:last-child { border-bottom: none; }
+  .phase .pid {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+    font-weight: 700; font-size: 15px; color: var(--ember);
+    font-variant-numeric: tabular-nums;
+  }
+  .phase .pt { font-weight: 700; font-size: 16px; letter-spacing: -0.01em; }
+  .phase .pd { font-size: 14px; color: var(--ink-muted); margin-top: 3px; }
+  .phase .pcrit {
+    font-family: ui-monospace, monospace; font-size: 12px; color: var(--good); margin-top: 6px;
+    display: inline-flex; gap: 7px; align-items: baseline;
+  }
+  .phase .pcrit::before { content: "✓"; color: var(--good); }
+  .phase.milestone .pt::after {
+    content: "вертикальный срез"; margin-left: 10px;
+    font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--ember); border: 1px solid color-mix(in srgb, var(--ember) 40%, var(--border));
+    padding: 2px 7px; border-radius: 5px; vertical-align: middle; font-weight: 600;
+  }
+
+  /* ============ FOOTER ============ */
+  footer { padding: 44px 0 60px; }
+  .foot {
+    display: flex; flex-wrap: wrap; gap: 12px 28px; align-items: center;
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12px; color: var(--ink-faint);
+  }
+  .foot .fk { color: var(--ink-muted); }
+
+  /* ============ ENTRANCE ============ */
+  .rise { opacity: 0; transform: translateY(14px); animation: rise .7s cubic-bezier(.2,.7,.2,1) forwards; }
+  .d1 { animation-delay: .05s; } .d2 { animation-delay: .13s; } .d3 { animation-delay: .21s; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+
+  /* ============ RESPONSIVE ============ */
+  @media (max-width: 760px) {
+    .principles { grid-template-columns: 1fr 1fr; }
+    .branch { grid-template-columns: 1fr; }
+    .stepper { grid-template-columns: 1fr 1fr; }
+    .decisions { grid-template-columns: 1fr; }
+    .foundation .items { margin-left: 0; }
+  }
+  @media (max-width: 460px) {
+    .principles { grid-template-columns: 1fr; }
+    .stepper { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .rise { animation: none; opacity: 1; transform: none; }
+    .hero::before { animation: none; }
+  }
+</style>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="brandline rise">
+      <span class="spark" aria-hidden="true"></span>
+      <span class="name">Architecture Specification</span>
+    </div>
+    <h1 class="rise d1">The <span class="molten">Forge</span></h1>
+    <p class="tagline rise d1">Where software is crafted.</p>
+    <div class="chips rise d2">
+      <span class="chip"><span class="dot"></span> <b>v1.1</b> · реконсиленная</span>
+      <span class="chip"><b>Стек:</b>&nbsp;Kotlin + Compose Multiplatform</span>
+      <span class="chip"><b>Платформы:</b>&nbsp;Windows · macOS · Linux</span>
+      <span class="chip"><b>MVP:</b>&nbsp;виджет-первый</span>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Что это</span>
+      <h2>Инженерная платформа, где LLM не видно</h2>
+      <p class="lede">Разработчик не выбирает модель, не пишет промпт, не ищет нужный Merge Request и не думает, какой API вызвать. Он запускает <b>Skill</b> — «Review this Merge Request», «Explain this Service», «Implement this Jira Story» — а всё остальное берёт на себя платформа. Каждое действие сначала пытается выполниться детерминированно; интеллект подключается только там, где он действительно нужен.</p>
+    </div>
+    <div class="principles">
+      <div class="principle rise"><div class="k">Skill First</div><div class="v">Пользователь работает только со Skills, не с моделями.</div></div>
+      <div class="principle rise"><div class="k">AI Invisible</div><div class="v">LLM полностью скрыты за абстракцией исполнителя.</div></div>
+      <div class="principle rise"><div class="k">Context Native</div><div class="v">Любое действие начинается со сбора контекста.</div></div>
+      <div class="principle rise"><div class="k">Workflow Driven</div><div class="v">Каждый Skill — это Recipe из атомарных Strike'ов.</div></div>
+      <div class="principle rise"><div class="k">Automation First</div><div class="v">Детерминизм по умолчанию, интеллект — по необходимости.</div></div>
+      <div class="principle rise"><div class="k">Everything is a Plugin</div><div class="v">Все компоненты — независимые расширения через SDK.</div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Архитектура</span>
+      <h2>Ядро, оркестратор и исполнители</h2>
+      <p class="lede">Пользователь запускает Skill из каталога, оркестратор интерпретирует его Recipe и для каждого Strike формует Stock, выбирает исполнителя и фиксирует результат. Вся эта машина стоит на инфраструктурном фундаменте.</p>
+    </div>
+    <div class="flow">
+      <div class="node rise"><div class="nk">Workshop</div><div class="nd">Рабочее пространство: запуск Skills, история, активные процессы</div></div>
+      <div class="arrow" aria-hidden="true"></div>
+      <div class="node rise"><div class="nk">Foundry</div><div class="nd">Каталог инженерных возможностей — Skills</div></div>
+      <div class="arrow" aria-hidden="true"></div>
+      <div class="node rise"><div class="nk">Skill → Recipe → Strikes</div><div class="nd">Декларация задачи и последовательность атомарных операций (граф / DAG)</div></div>
+      <div class="arrow" aria-hidden="true"></div>
+      <div class="node accent rise"><div class="nk">Forge Brain</div><div class="nd">Оркестратор: исполнение Workflow, сбор контекста, выбор исполнителя, ретраи, стоимость, аудит</div></div>
+      <div class="arrow" aria-hidden="true"></div>
+      <div class="branch">
+        <div class="node rise"><div class="nk" style="font-size:15px">Anvil</div><div class="nd">Сборка единого Context Object из источников</div></div>
+        <div class="node rise"><div class="nk" style="font-size:15px">Forge Memory</div><div class="nd">Долговременная память: ADR, знания, прошлые прогоны</div></div>
+        <div class="node rise"><div class="nk" style="font-size:15px">Executors</div><div class="nd">Tool · Press · Master · Smith — кто-то выполняет Strike</div></div>
+      </div>
+      <div class="foundation rise">
+        <div class="lbl"><span class="spark" style="width:20px;height:20px" aria-hidden="true"></span>Forge Core <span class="lbl-sub">— «операционная система» платформы</span></div>
+        <div class="items">
+          <span>plugin container</span><span>DI · Koin</span><span>config</span><span>event bus</span><span>security</span><span>state</span><span>audit</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Исполнители · Automation First</span>
+      <h2>Чем ниже падаешь — тем горячее</h2>
+      <p class="lede">Для каждого Strike Forge Brain перебирает исполнителей строго по приоритету. Пока задачу можно решить детерминированно, платформа остаётся «холодной». Smith — это огонь кузницы: интеллект, к которому тянутся в последнюю очередь.</p>
+    </div>
+
+    <div class="ladder-frame">
+      <div class="ladder-axis"><span>↑ Пробуем первым</span><span>Последнее средство ↓</span></div>
+
+      <div class="tier rise" data-x="tool">
+        <div class="heat" aria-hidden="true"></div>
+        <div class="body">
+          <div class="th"><span class="name">Tool</span><span class="role">детерминированные действия, никогда не использует LLM</span></div>
+          <div class="ex"><span>GitLab API</span><span>Jira API</span><span>Confluence API</span><span>Git</span><span>PostgreSQL</span><span>Docker</span><span>Kubernetes</span></div>
+        </div>
+      </div>
+
+      <div class="tier rise" data-x="script">
+        <div class="heat" aria-hidden="true"></div>
+        <div class="body">
+          <div class="th"><span class="name">Press</span><span class="role">запуск локальной программы</span></div>
+          <div class="ex"><span>Gradle</span><span>Maven</span><span>Bash</span><span>Python</span></div>
+        </div>
+      </div>
+
+      <div class="tier rise" data-x="human">
+        <div class="heat" aria-hidden="true"></div>
+        <div class="body">
+          <div class="th"><span class="name">Master</span><span class="role">шаг требует участия пользователя</span></div>
+          <div class="ex"><span>подтверждение Merge</span><span>разрешение конфликта</span><span>выбор ветки</span></div>
+        </div>
+      </div>
+
+      <div class="tier rise" data-x="smith">
+        <div class="heat" aria-hidden="true"></div>
+        <div class="body">
+          <div class="th"><span class="name">Smith</span><span class="role">интеллектуальный исполнитель поверх LLM</span> <span class="tag-last">last resort</span></div>
+          <div class="ex"><span>Claude Code Smith</span><span>Qwen Smith</span><span>Codex Smith</span><span>Gemini Smith</span><span>генерация · анализ · review</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rule mono">
+      <span class="cm">// Резолвер Forge Brain — «правило выбора» как код, а не как картинка</span><br>
+      <span class="kw">fun</span> resolve(step, ctx):<br>
+      &nbsp;&nbsp;candidates = registry.providersFor(step.capability)<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;.filter { it.canHandle(step, ctx) }<br>
+      &nbsp;&nbsp;<span class="kw">if</span> candidates.isEmpty(): <span class="kw">throw</span> NoExecutorFound(step)<br>
+      &nbsp;&nbsp;<span class="cm">// TOOL(0) &lt; PRESS(1) &lt; MASTER(2) &lt; SMITH(3) — это и есть Automation First</span><br>
+      &nbsp;&nbsp;<span class="kw">return</span> candidates.sortedBy(kind.ordinal, -priority).first()
+    </div>
+    <p class="src-note">Промежуточный слой — <b>Capability Registry</b>: Step объявляет <span class="mono" style="color:var(--ember)">capability</span>, плагины регистрируют, что её умеют. Без реестра «правило выбора» из ТЗ нереализуемо. <b>Жёсткий запрет</b> (напр. GitLab merge / force-push) означает, что capability просто не зарегистрирована — резолвить нечего.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Anvil</span>
+      <h2>Сборка контекста до выполнения</h2>
+      <p class="lede">Перед любым Strike именно Anvil формует нужную информацию в единый Stock — лениво и параллельно, только то, что Strike объявил в своём запросе. Тяжёлое модель дотягивает вызовами Skills, а не RAG-стаффингом. Подсвечены источники MVP.</p>
+    </div>
+    <div class="sources">
+      <span class="src mvp"><span class="b"></span>Git</span>
+      <span class="src mvp"><span class="b"></span>GitLab</span>
+      <span class="src mvp"><span class="b"></span>Jira</span>
+      <span class="src mvp"><span class="b"></span>Confluence</span>
+      <span class="src"><span class="b"></span>локальный проект</span>
+      <span class="src"><span class="b"></span>терминал</span>
+      <span class="src"><span class="b"></span>Docker</span>
+      <span class="src"><span class="b"></span>Kubernetes</span>
+      <span class="src"><span class="b"></span>PostgreSQL</span>
+      <span class="src"><span class="b"></span>Redis</span>
+      <span class="src"><span class="b"></span>Forge Memory</span>
+      <span class="src"><span class="b"></span>результаты прошлых Strike'ов</span>
+    </div>
+    <p class="src-note"><span style="color:var(--ember)">◆</span> — источники MVP (Git · GitLab · Jira · Confluence). Остальные подключаются как Context Provider-плагины без изменения ядра.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Сквозной сценарий</span>
+      <h2>Review Pull Request — первый вертикальный срез</h2>
+      <p class="lede">Один Skill трогает всю ось платформы: три Tool-интеграции, память и Smith. Цвет каждого шага — это выбранный исполнитель. Обратите внимание: «Generate Review» — единственный шаг, где нет Tool/Press, поэтому падает на Smith.</p>
+    </div>
+    <div class="stepper">
+      <div class="step rise" data-x="tool"><div class="si">01</div><div class="st">Load Merge Request</div><div class="se">GitLab Tool</div></div>
+      <div class="step rise" data-x="tool"><div class="si">02</div><div class="st">Load Related Jira</div><div class="se">Jira Tool</div></div>
+      <div class="step rise" data-x="tool"><div class="si">03</div><div class="st">Search Documentation</div><div class="se">Confluence Tool</div></div>
+      <div class="step rise" data-x="mem"><div class="si">04</div><div class="st">Search Memory</div><div class="se">Forge Memory</div></div>
+      <div class="step rise" data-x="smith"><div class="si">05</div><div class="st">Generate Review</div><div class="se">Claude Smith</div></div>
+      <div class="step rise" data-x="tool"><div class="si">06</div><div class="st">Publish Review</div><div class="se">GitLab Tool</div><span class="confirm">Master confirm</span></div>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--tool)"></i> Tool — детерминизм</span>
+      <span><i style="background:var(--human)"></i> Memory</span>
+      <span><i style="background:var(--smith)"></i> Smith — LLM</span>
+      <span><i style="background:var(--crit)"></i> опасный Strike → подтверждение</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Кодовая база</span>
+      <h2>Модульная карта</h2>
+      <p class="lede">Всё зависит только от <span class="mono">forge-sdk</span>. Плагины не знают про ядро — лишь про контракты. Это и делает «Everything is a Plugin» реальным, а не лозунгом.</p>
+    </div>
+    <div class="tree" role="img" aria-label="Дерево Gradle-модулей проекта the-forge">
+<span class="dir">the-forge/</span>
+<span class="tw">├─</span> <span class="dir">forge-sdk/</span>           <span class="cm"># публичные контракты. только интерфейсы. нулевые зависимости</span>
+<span class="tw">├─</span> <span class="dir">forge-core/</span>          <span class="cm"># ядро: plugins · DI · config · events · security · state · audit</span>
+<span class="tw">├─</span> <span class="dir">forge-brain/</span>         <span class="cm"># оркестратор: RecipeEngine · StrikeResolver · ModelRouter</span>
+<span class="tw">├─</span> <span class="dir">forge-anvil/</span>         <span class="cm"># движок контекста + встроенные ContextProvider'ы</span>
+<span class="tw">├─</span> <span class="dir">forge-memory/</span>        <span class="cm"># MemoryProvider SPI + хранилище (SQLite + vector)</span>
+<span class="tw">├─</span> <span class="dir">forge-executors/</span>     <span class="cm"># рантаймы Tool / Press / Master / Smith</span>
+<span class="tw">├─</span> <span class="dir">plugins/</span>
+<span class="tw">│</span>  <span class="tw">├─</span> <span class="plug">integration-gitlab/</span>   <span class="cm"># Tool + ContextProvider (БЕЗ merge / force-push)</span>
+<span class="tw">│</span>  <span class="tw">├─</span> <span class="plug">integration-jira/</span>     <span class="cm"># Tool + ContextProvider</span>
+<span class="tw">│</span>  <span class="tw">├─</span> <span class="plug">integration-confluence/</span>
+<span class="tw">│</span>  <span class="tw">├─</span> <span class="plug">integration-git/</span>
+<span class="tw">│</span>  <span class="tw">└─</span> <span class="plug">smith-claude-code/</span>    <span class="cm"># первый Smith — CLI-агент</span>
+<span class="tw">├─</span> <span class="dir">skills/</span>              <span class="cm"># review-pr · explain-service · generate-liquibase · …</span>
+<span class="tw">├─</span> <span class="dir">forge-workshop/</span>      <span class="cm"># Compose Desktop приложение (сборка всего)</span>
+<span class="tw">└─</span> <span class="dir">forge-cli/</span>           <span class="cm"># v0.3 — CLI поверх того же ядра</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Зафиксировано перед кодом</span>
+      <h2>Шесть решений</h2>
+      <p class="lede">Спорные развилки закрыты, чтобы дизайн ядра не переделывался позже.</p>
+    </div>
+    <div class="decisions">
+      <div class="dec rise"><div class="q">Q1</div><div class="topic">Smith: роли моделей</div><div class="verdict">Qwen — текст, Claude Code — код/ревью</div><div class="why">Единый контракт <span class="mono">Smith</span>. Роутинг по роли задачи: локальная Qwen продумывает текст и планирует, агент пишет код и ревью.</div></div>
+      <div class="dec rise"><div class="q">Q2</div><div class="topic">Dependency Injection</div><div class="verdict">Koin</div><div class="why">Лёгкий, kotlin-идиоматичный, без annotation processing. Spring для десктопа избыточен.</div></div>
+      <div class="dec rise"><div class="q">Q3</div><div class="topic">Изоляция плагинов</div><div class="verdict">SPI под изоляцию, включаем ≈P7</div><div class="why">P0 — общий classloader; отдельный classloader на плагин и жёсткие permissions — перед публичным SDK.</div></div>
+      <div class="dec rise"><div class="q">Q4</div><div class="topic">Модель Recipe</div><div class="verdict">Граф (DAG) с самого начала</div><div class="why">Линейный — вырожденный DAG. Готово к ветвлениям, ошибкам и Workflow Designer без миграции ядра.</div></div>
+      <div class="dec rise"><div class="q">Q5</div><div class="topic">Формат Skill</div><div class="verdict">Гибрид: дата-модель + Kotlin DSL</div><div class="why">DSL даёт типобезопасность first-party Skills; сериализуемая дата открывает Marketplace.</div></div>
+      <div class="dec rise"><div class="q">Q6</div><div class="topic">Дистрибуция</div><div class="verdict">Форматы .msi / .dmg; инструмент — позже</div><div class="why">Кандидат — Conveyor (подпись + notarization + дельта-апдейты). Дизайн от выбора не зависит.</div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">Дорожная карта MVP</span>
+      <h2>Изнутри наружу</h2>
+      <p class="lede">Виджет-первый: детерминированные фичи дают пользу к P4, AI-часть наращивается сверху. Движок (P0–P1) уже реализован и покрыт тестами.</p>
+    </div>
+    <div class="phases">
+      <div class="phase rise"><div class="pid">P0</div><div><div class="pt">Репо + CI · Forge Core + SDK</div><div class="pd">Плагинный контейнер, DI/Koin, конфиг, события, security, state, audit.</div><div class="pcrit">плагин грузится и получает сервисы ядра</div></div></div>
+      <div class="phase rise"><div class="pid">P1</div><div><div class="pt">Домен + Capability Registry ✓</div><div class="pd">Skill / Recipe (DAG) / Strike / Stock; StrikeResolver.</div><div class="pcrit">реализовано — 21 тест зелёный</div></div></div>
+      <div class="phase rise"><div class="pid">P2</div><div><div class="pt">Executors: Tool + Master</div><div class="pd">Рантаймы исполнителей; Press/Smith следом.</div><div class="pcrit">Tool отрабатывает Strike с подтверждением Master</div></div></div>
+      <div class="phase rise"><div class="pid">P3</div><div><div class="pt">Безопасные интеграции</div><div class="pd">Jira + GitLab Tools; секреты в системном хранилище; forbidden(merge/force-push).</div><div class="pcrit">токены управляются, опасные операции под запретом</div></div></div>
+      <div class="phase rise milestone"><div class="pid">P4</div><div><div class="pt">Виджет-ценность</div><div class="pd">Create Jira · Open MR · Dashboard · Notifications + минимальный Workshop.</div><div class="pcrit">рабочий кросс-платформенный виджет — первый релиз</div></div></div>
+      <div class="phase rise"><div class="pid">P5</div><div><div class="pt">Anvil — формовка Stock</div><div class="pd">Context Provider'ы: Git · GitLab · Jira · Confluence, лениво/параллельно.</div><div class="pcrit">Stock собирается под запрос Strike</div></div></div>
+      <div class="phase rise"><div class="pid">P6</div><div><div class="pt">Model Router — экономия токенов</div><div class="pd">Smith'ы по ролям: Qwen (текст) / Claude Code (код-ревью) + Validators + бюджеты.</div><div class="pcrit">текст → локальный Qwen, код → агент; эскалация при провале Validator</div></div></div>
+      <div class="phase rise"><div class="pid">P7</div><div><div class="pt">Skill «Review Pull Request»</div><div class="pd">AI-срез: GitLab → Jira → Confluence → Memory → Smith → GitLab.</div><div class="pcrit">ревью PR публикуется (с подтверждением Master)</div></div></div>
+      <div class="phase rise"><div class="pid">P8</div><div><div class="pt">Confluence + Grafana + доп. Skills</div><div class="pd">Grafana Tool (метрики/алерты); «Investigate Production Error»; Integrations-surface.</div><div class="pcrit">алерты → уведомления; ядро не меняется при добавлении Skill</div></div></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <span><span class="fk">Источник:</span> The Forge — Архитектура v1.1 (реконсиленная)</span>
+    <span><span class="fk">Ядро:</span> Forge Core + Forge Brain</span>
+    <span><span class="fk">Обновлено:</span> 2026-07-21</span>
+  </div>
+</footer>
