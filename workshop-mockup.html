@@ -1,0 +1,432 @@
+<title>The Forge — Workshop (макет UI)</title>
+<style>
+  :root {
+    --ground: #E7E3DD; --surface-1: #F1EEE9; --surface-2: #FBFAF7; --surface-3: #FFFFFF;
+    --ink: #211C18; --ink-muted: #5B524A; --ink-faint: #8B8078;
+    --border: #D3CCC3; --border-strong: #B7AEA4;
+    --ember: #C64C16; --ember-hot: #D9871F; --ember-soft: rgba(198,76,22,0.10);
+    --tool: #2C74A2; --press: #9E6428; --master: #64539C; --smith: #C64C16; --mem: #64539C;
+    --good: #3E8B58; --warn: #B7791F; --crit: #C0392B;
+    --shadow: 0 1px 2px rgba(30,22,16,.06), 0 10px 30px rgba(30,22,16,.10);
+    --shadow-pop: 0 10px 24px rgba(30,22,16,.14), 0 30px 60px rgba(30,22,16,.18);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #14110F; --surface-1: #1C1815; --surface-2: #241F1A; --surface-3: #2B241D;
+      --ink: #ECE4DB; --ink-muted: #A99D90; --ink-faint: #6E655C;
+      --border: #332C27; --border-strong: #4A423B;
+      --ember: #FF7A34; --ember-hot: #FFB347; --ember-soft: rgba(255,122,52,0.14);
+      --tool: #5FA8D6; --press: #CB965A; --master: #A493D4; --smith: #FF7A34; --mem: #A493D4;
+      --good: #56B473; --warn: #E0A63B; --crit: #E4665A;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 34px rgba(0,0,0,.4);
+      --shadow-pop: 0 12px 30px rgba(0,0,0,.5), 0 40px 70px rgba(0,0,0,.5);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="light"] {
+    --ground: #E7E3DD; --surface-1: #F1EEE9; --surface-2: #FBFAF7; --surface-3: #FFFFFF;
+    --ink: #211C18; --ink-muted: #5B524A; --ink-faint: #8B8078;
+    --border: #D3CCC3; --border-strong: #B7AEA4;
+    --ember: #C64C16; --ember-hot: #D9871F; --ember-soft: rgba(198,76,22,0.10);
+    --tool: #2C74A2; --press: #9E6428; --master: #64539C; --smith: #C64C16; --mem: #64539C;
+    --good: #3E8B58; --warn: #B7791F; --crit: #C0392B;
+    --shadow: 0 1px 2px rgba(30,22,16,.06), 0 10px 30px rgba(30,22,16,.10);
+    --shadow-pop: 0 10px 24px rgba(30,22,16,.14), 0 30px 60px rgba(30,22,16,.18);
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --ground: #14110F; --surface-1: #1C1815; --surface-2: #241F1A; --surface-3: #2B241D;
+    --ink: #ECE4DB; --ink-muted: #A99D90; --ink-faint: #6E655C;
+    --border: #332C27; --border-strong: #4A423B;
+    --ember: #FF7A34; --ember-hot: #FFB347; --ember-soft: rgba(255,122,52,0.14);
+    --tool: #5FA8D6; --press: #CB965A; --master: #A493D4; --smith: #FF7A34; --mem: #A493D4;
+    --good: #56B473; --warn: #E0A63B; --crit: #E4665A;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 34px rgba(0,0,0,.4);
+    --shadow-pop: 0 12px 30px rgba(0,0,0,.5), 0 40px 70px rgba(0,0,0,.5);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: ui-monospace, "Cascadia Code", "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace; }
+  .page { max-width: 1080px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1 { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 6px; }
+  .sub { color: var(--ink-muted); margin: 0 0 4px; max-width: 64ch; }
+  .eyebrow { font-family: ui-monospace, monospace; font-size: 11.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-faint); }
+  .surfaces { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .surfaces .s { font-size: 12.5px; color: var(--ink-muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 6px 13px; }
+  .surfaces .s b { color: var(--ink); }
+  .frame-cap { display: flex; align-items: baseline; gap: 10px; margin: 46px 0 14px; flex-wrap: wrap; }
+  .frame-cap .n { font-family: ui-monospace, monospace; font-size: 12px; color: var(--ember); font-weight: 700; }
+  .frame-cap .t { font-weight: 700; font-size: 16px; letter-spacing: -0.01em; }
+  .frame-cap .d { color: var(--ink-faint); font-size: 13px; }
+
+  .win { background: var(--surface-1); border: 1px solid var(--border-strong); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+  .win-bar { height: 40px; display: flex; align-items: center; gap: 12px; padding: 0 14px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+  .dots { display: flex; gap: 7px; }
+  .dots i { width: 11px; height: 11px; border-radius: 50%; background: var(--border-strong); display: block; }
+  .win-title { font-size: 12.5px; color: var(--ink-muted); display: flex; align-items: center; gap: 8px; }
+  .spark { width: 15px; height: 15px; border-radius: 4px; background: linear-gradient(150deg, var(--ember-hot), var(--ember)); box-shadow: 0 0 10px -1px var(--ember); flex: none; }
+  .win-search { margin-left: auto; font-size: 12px; color: var(--ink-faint); background: var(--ground); border: 1px solid var(--border); border-radius: 7px; padding: 5px 12px; }
+
+  .win-body { display: grid; grid-template-columns: 210px 1fr; min-height: 460px; }
+  .rail { border-right: 1px solid var(--border); padding: 14px 10px; display: flex; flex-direction: column; gap: 3px; background: var(--surface-2); }
+  .rail-item { display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 9px; color: var(--ink-muted); font-size: 14px; font-weight: 500; }
+  .rail-item svg { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.7; }
+  .rail-item.active { background: var(--ember-soft); color: var(--ember); font-weight: 600; }
+  .rail-sep { height: 1px; background: var(--border); margin: 10px 6px; }
+  .rail-foot { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 9px 11px; font-size: 12.5px; color: var(--ink-faint); }
+  .avatar { width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(140deg, var(--master), var(--tool)); flex: none; }
+
+  .content { padding: 22px 24px; overflow: hidden; }
+  .content-h { display: flex; align-items: flex-end; gap: 14px; margin-bottom: 18px; }
+  .content-h h2 { margin: 0; font-size: 21px; font-weight: 800; letter-spacing: -0.02em; }
+  .content-h .ctx { color: var(--ink-faint); font-size: 13px; }
+  .content-h .primary { margin-left: auto; }
+  .btn { font-size: 13px; font-weight: 600; border-radius: 9px; padding: 9px 15px; border: 1px solid var(--border-strong); background: var(--surface-3); color: var(--ink); display: inline-flex; align-items: center; gap: 8px; }
+  .btn-primary { background: linear-gradient(150deg, var(--ember-hot), var(--ember)); border-color: transparent; color: #fff; box-shadow: 0 1px 10px -2px var(--ember); }
+  .btn-ghost { background: transparent; }
+  .btn-sm { padding: 6px 11px; font-size: 12px; }
+
+  /* foundry */
+  .foundry { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .skill { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 15px; display: flex; flex-direction: column; gap: 9px; }
+  .skill .st2 { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
+  .skill .sd { font-size: 12.5px; color: var(--ink-muted); flex: 1; line-height: 1.45; }
+  .skill .sf { display: flex; align-items: center; gap: 6px; }
+  .xchip { font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: .03em; padding: 2px 7px; border-radius: 5px; border: 1px solid; font-weight: 600; }
+  .xchip.tool { color: var(--tool); border-color: color-mix(in srgb, var(--tool) 45%, var(--border)); }
+  .xchip.master { color: var(--master); border-color: color-mix(in srgb, var(--master) 45%, var(--border)); }
+  .xchip.smith { color: var(--smith); border-color: color-mix(in srgb, var(--smith) 45%, var(--border)); }
+  .skill .run { margin-left: auto; }
+
+  /* data cards (used in Widget) */
+  .card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .card-h { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-bottom: 1px solid var(--border); }
+  .card-h .ct { font-weight: 700; font-size: 13.5px; letter-spacing: -0.01em; }
+  .card-h .add { margin-left: auto; font-family: ui-monospace, monospace; font-size: 11px; color: var(--ember); font-weight: 600; }
+  .card-h .src { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+  .list { display: flex; flex-direction: column; }
+  .li { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-top: 1px solid var(--border); font-size: 13px; }
+  .li:first-child { border-top: none; }
+  .li .code { font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--ink-muted); flex: none; }
+  .li .txt { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .li .pill { margin-left: auto; flex: none; }
+  .pill { font-family: ui-monospace, monospace; font-size: 10.5px; letter-spacing: .04em; padding: 3px 8px; border-radius: 999px; border: 1px solid transparent; font-weight: 600; white-space: nowrap; }
+  .pill.good { color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, transparent); background: color-mix(in srgb, var(--good) 12%, transparent); }
+  .pill.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+  .pill.crit { color: var(--crit); border-color: color-mix(in srgb, var(--crit) 40%, transparent); background: color-mix(in srgb, var(--crit) 12%, transparent); }
+  .pill.open { color: var(--tool); border-color: color-mix(in srgb, var(--tool) 40%, transparent); background: color-mix(in srgb, var(--tool) 12%, transparent); }
+  .pill.neutral { color: var(--ink-muted); border-color: var(--border-strong); }
+
+  /* skill runner */
+  .runner { display: grid; grid-template-columns: 1.15fr 1fr; gap: 16px; }
+  .run-head { display: flex; align-items: center; gap: 12px; }
+  .run-head .title { font-weight: 800; font-size: 17px; letter-spacing: -0.01em; }
+  .run-input { font-family: ui-monospace, monospace; font-size: 12px; color: var(--ink-muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 7px 11px; margin: 8px 0 16px; }
+  .timeline { display: flex; flex-direction: column; gap: 7px; }
+  .strike { display: grid; grid-template-columns: 4px 1fr auto; gap: 12px; align-items: center; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px 11px 0; overflow: hidden; }
+  .strike .stripe { width: 4px; align-self: stretch; border-radius: 4px 0 0 4px; }
+  .strike[data-x="tool"] .stripe { background: var(--tool); } .strike[data-x="tool"] .exec { color: var(--tool); }
+  .strike[data-x="mem"] .stripe { background: var(--mem); } .strike[data-x="mem"] .exec { color: var(--mem); }
+  .strike[data-x="smith"] .stripe { background: var(--smith); } .strike[data-x="smith"] .exec { color: var(--smith); }
+  .strike .body { min-width: 0; }
+  .strike .sname { font-weight: 600; font-size: 13.5px; }
+  .strike .exec { font-family: ui-monospace, monospace; font-size: 11px; margin-top: 2px; }
+  .stt { font-family: ui-monospace, monospace; font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; padding: 3px 9px; border-radius: 6px; font-weight: 600; margin-right: 14px; }
+  .stt.done { color: var(--good); background: color-mix(in srgb, var(--good) 12%, transparent); }
+  .stt.run { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+  .stt.confirm { color: var(--crit); background: color-mix(in srgb, var(--crit) 12%, transparent); }
+  .result { background: var(--surface-2); border: 1px solid var(--border); border-radius: 11px; padding: 15px; font-size: 13px; }
+  .result h4 { margin: 0 0 8px; font-size: 13px; }
+  .result .rline { color: var(--ink-muted); padding: 5px 0; border-top: 1px dashed var(--border); }
+  .result .rline:first-of-type { border-top: none; }
+  .result .tag { font-family: ui-monospace, monospace; font-size: 11px; color: var(--smith); }
+
+  .stage { position: relative; }
+  .overlay { position: absolute; inset: 0; background: color-mix(in srgb, var(--ground) 62%, transparent); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; }
+  .modal { width: 400px; max-width: 90%; background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 14px; box-shadow: var(--shadow-pop); overflow: hidden; }
+  .modal .mh { display: flex; align-items: center; gap: 10px; padding: 15px 18px; border-bottom: 1px solid var(--border); }
+  .modal .mh .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--master); }
+  .modal .mh .mt { font-weight: 700; font-size: 15px; }
+  .modal .mh .kind { margin-left: auto; font-family: ui-monospace, monospace; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--master); border: 1px solid color-mix(in srgb, var(--master) 40%, var(--border)); padding: 2px 7px; border-radius: 5px; }
+  .modal .mb { padding: 16px 18px; font-size: 13.5px; color: var(--ink-muted); }
+  .modal .mb .kv { display: flex; gap: 10px; padding: 5px 0; }
+  .modal .mb .kv .kk { color: var(--ink-faint); width: 92px; flex: none; font-family: ui-monospace, monospace; font-size: 12px; }
+  .modal .mb .kv .vv { color: var(--ink); font-family: ui-monospace, monospace; font-size: 12px; }
+  .modal .ma { display: flex; gap: 10px; justify-content: flex-end; padding: 14px 18px; border-top: 1px solid var(--border); background: var(--surface-2); }
+
+  /* standalone widget — compact by default, expands on hover */
+  .float-wrap { display: flex; justify-content: center; padding: 8px 0 60px; }
+  .widget { width: 300px; flex: none; background: var(--surface-1); border: 1px solid var(--border-strong); border-radius: 13px; box-shadow: var(--shadow); overflow: hidden; align-self: flex-start; }
+  .widget:hover { box-shadow: var(--shadow-pop); }
+  .wbar { display: flex; align-items: center; gap: 9px; padding: 10px 13px; }
+  .wbar .wt { font-weight: 700; font-size: 13px; }
+  .wmini { margin-left: auto; display: flex; align-items: center; gap: 9px; }
+  .wmini .m { font-family: ui-monospace, monospace; font-size: 11px; color: var(--ink-muted); }
+  .wmini .m b { color: var(--ink); font-weight: 700; }
+  .wmini .ci { width: 8px; height: 8px; border-radius: 50%; background: var(--crit); display: inline-block; }
+  .wmini .caret { color: var(--ink-faint); font-size: 10px; transition: transform .25s ease; }
+  .widget:hover .caret { transform: rotate(180deg); }
+  .wbody { max-height: 0; opacity: 0; overflow: hidden; padding: 0 11px; display: flex; flex-direction: column; gap: 9px; transition: max-height .3s ease, opacity .22s ease, padding .3s ease; }
+  .widget:hover .wbody { max-height: 600px; opacity: 1; padding: 0 11px 11px; }
+  .wbody .card { background: var(--surface-2); }
+  /* scroll only when there are many items */
+  .wbody .list { max-height: 156px; overflow-y: auto; }
+  .wbody .list, .tray-list { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+  .wbody .list::-webkit-scrollbar, .tray-list::-webkit-scrollbar { width: 9px; }
+  .wbody .list::-webkit-scrollbar-thumb, .tray-list::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 9px; border: 2px solid transparent; background-clip: padding-box; }
+  .wbody .list::-webkit-scrollbar-track, .tray-list::-webkit-scrollbar-track { background: transparent; }
+  .widget-hint { text-align: center; font-size: 12px; color: var(--ink-faint); margin-top: 10px; }
+  @media (prefers-reduced-motion: reduce) { .wbody, .caret { transition: none; } }
+
+  /* tray popover */
+  .tray-wrap { display: flex; justify-content: center; }
+  .tray { width: 340px; background: var(--surface-1); border: 1px solid var(--border-strong); border-radius: 14px; box-shadow: var(--shadow-pop); overflow: hidden; position: relative; }
+  .tray::before { content: ""; position: absolute; top: -7px; left: 50%; transform: translateX(-50%) rotate(45deg); width: 13px; height: 13px; background: var(--surface-1); border-left: 1px solid var(--border-strong); border-top: 1px solid var(--border-strong); }
+  .tray-h { display: flex; align-items: center; gap: 10px; padding: 13px 15px; border-bottom: 1px solid var(--border); }
+  .tray-h .tt { font-weight: 700; font-size: 14px; }
+  .tray-h .run { margin-left: auto; font-family: ui-monospace, monospace; font-size: 10.5px; color: var(--warn); display: inline-flex; align-items: center; gap: 6px; }
+  .tray-h .run::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+  .tray-stats { display: flex; padding: 12px 15px; gap: 6px; }
+  .tray-stats .s { flex: 1; text-align: center; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 9px 6px; }
+  .tray-stats .s .v { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .tray-stats .s .k { font-family: ui-monospace, monospace; font-size: 9.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-faint); margin-top: 1px; }
+  .tray-list { padding: 4px 0 6px; max-height: 200px; overflow-y: auto; }
+  .tray-li { display: flex; align-items: center; gap: 10px; padding: 8px 15px; font-size: 12.5px; }
+  .tray-li .code { font-family: ui-monospace, monospace; font-size: 11px; color: var(--ink-faint); }
+  .tray-li .pill { margin-left: auto; }
+  .tray-foot { padding: 11px 15px; border-top: 1px solid var(--border); background: var(--surface-2); }
+  .tray-foot .btn { width: 100%; justify-content: center; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 22px; font-size: 12.5px; color: var(--ink-muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .legend i { width: 11px; height: 3px; border-radius: 2px; }
+
+  @media (max-width: 820px) {
+    .win-body { grid-template-columns: 1fr; }
+    .rail { flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    .rail-foot, .rail-sep { display: none; }
+    .foundry, .runner { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="page">
+  <span class="eyebrow">The Forge · P4</span>
+  <h1>Workshop — макет UI</h1>
+  <p class="sub">Как выглядит десктоп до кода на Compose. Визуальный язык — из архитектурного артефакта: палитра кузницы, моно-лейблы, цвет = исполнитель. Три отдельных окна:</p>
+  <div class="surfaces">
+    <span class="s"><b>Workshop</b> — платформа: Foundry, Skill Runner, History, Integrations</span>
+    <span class="s"><b>Widget</b> — самостоятельный Jira/GitLab (наследник WorkWidget)</span>
+    <span class="s"><b>Трей-поповер</b> — быстрый доступ</span>
+  </div>
+
+  <!-- FRAME 1: main window / Foundry -->
+  <div class="frame-cap">
+    <span class="n">01</span><span class="t">Главное окно · Foundry</span>
+    <span class="d">каталог Skills — то, что запускает пользователь (без моделей и промптов)</span>
+  </div>
+  <div class="win">
+    <div class="win-bar">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="win-title"><span class="spark"></span> The Forge · Workshop</span>
+      <span class="win-search mono">⌘K — запустить Skill…</span>
+    </div>
+    <div class="win-body">
+      <nav class="rail">
+        <div class="rail-item active">
+          <svg viewBox="0 0 24 24"><path d="M4 14h10l3-3 3 1-4 4v3H4z"/><path d="M9 10V5h4"/></svg>
+          Foundry
+        </div>
+        <div class="rail-item">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>
+          History
+        </div>
+        <div class="rail-item">
+          <svg viewBox="0 0 24 24"><path d="M9 7V4m6 3V4M8 7h8v4a4 4 0 0 1-8 0zM12 15v5"/></svg>
+          Integrations
+        </div>
+        <div class="rail-sep"></div>
+        <div class="rail-foot"><span class="avatar"></span> Aleksandr · подключено 2</div>
+      </nav>
+      <div class="content">
+        <div class="content-h">
+          <h2>Foundry</h2>
+          <span class="ctx">инженерные возможности · проект the-forge</span>
+        </div>
+        <div class="foundry">
+          <div class="skill">
+            <div class="st2">Review Pull Request</div>
+            <div class="sd">Собирает MR, задачу, доки и память — и пишет ревью.</div>
+            <div class="sf"><span class="xchip tool">Tool</span><span class="xchip smith">Smith</span><span class="btn btn-primary btn-sm run">Запустить</span></div>
+          </div>
+          <div class="skill">
+            <div class="st2">Create Jira Story</div>
+            <div class="sd">Создаёт задачу в Jira — с подтверждением.</div>
+            <div class="sf"><span class="xchip tool">Tool</span><span class="xchip master">Master</span><span class="btn btn-sm run">Запустить</span></div>
+          </div>
+          <div class="skill">
+            <div class="st2">Open GitLab MR</div>
+            <div class="sd">Открывает merge request. Merge/force-push запрещены.</div>
+            <div class="sf"><span class="xchip tool">Tool</span><span class="xchip master">Master</span><span class="btn btn-sm run">Запустить</span></div>
+          </div>
+          <div class="skill">
+            <div class="st2">Explain Service</div>
+            <div class="sd">Объясняет сервис по коду и документации.</div>
+            <div class="sf"><span class="xchip tool">Tool</span><span class="xchip smith">Smith</span><span class="btn btn-sm run">Запустить</span></div>
+          </div>
+          <div class="skill">
+            <div class="st2">Investigate Production Error</div>
+            <div class="sd">Тянет алерты/метрики Grafana и ищет причину.</div>
+            <div class="sf"><span class="xchip tool">Tool</span><span class="xchip smith">Smith</span><span class="btn btn-sm run">Запустить</span></div>
+          </div>
+          <div class="skill">
+            <div class="st2">Generate Liquibase Migration</div>
+            <div class="sd">Готовит миграцию по описанию изменений схемы.</div>
+            <div class="sf"><span class="xchip smith">Smith</span><span class="btn btn-sm run">Запустить</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FRAME 2: skill runner + master modal -->
+  <div class="frame-cap">
+    <span class="n">02</span><span class="t">Главное окно · Skill Runner + подтверждение Master</span>
+    <span class="d">таймлайн Strike'ов, цвет = исполнитель; опасный шаг ждёт подтверждения</span>
+  </div>
+  <div class="win">
+    <div class="win-bar">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="win-title"><span class="spark"></span> The Forge · Workshop — Review Pull Request</span>
+    </div>
+    <div class="stage">
+      <div class="content" style="padding:22px 24px">
+        <div class="run-head">
+          <span class="title">Review Pull Request</span>
+          <span class="pill open">running</span>
+        </div>
+        <div class="run-input mono">MR = gitlab.example.com/the-forge/-/merge_requests/41</div>
+        <div class="runner">
+          <div class="timeline">
+            <div class="strike" data-x="tool"><span class="stripe"></span><div class="body"><div class="sname">Load Merge Request</div><div class="exec mono">GitLab Tool</div></div><span class="stt done">done</span></div>
+            <div class="strike" data-x="tool"><span class="stripe"></span><div class="body"><div class="sname">Load Related Jira</div><div class="exec mono">Jira Tool</div></div><span class="stt done">done</span></div>
+            <div class="strike" data-x="mem"><span class="stripe"></span><div class="body"><div class="sname">Search Architecture Memory</div><div class="exec mono">Forge Memory</div></div><span class="stt done">done</span></div>
+            <div class="strike" data-x="smith"><span class="stripe"></span><div class="body"><div class="sname">Generate Review</div><div class="exec mono">Claude Code Smith</div></div><span class="stt run">running</span></div>
+            <div class="strike" data-x="tool"><span class="stripe"></span><div class="body"><div class="sname">Publish Review</div><div class="exec mono">GitLab Tool · danger=CONFIRM</div></div><span class="stt confirm">confirm</span></div>
+          </div>
+          <div class="result">
+            <h4>Ход выполнения</h4>
+            <div class="rline">Собран <span class="mono">Stock</span>: MR !41, задача FORGE-9, 2 ADR из памяти.</div>
+            <div class="rline">Роутинг: code/review → <span class="tag">Claude Code Smith</span>; планирование → Qwen.</div>
+            <div class="rline">Бюджет: 14k ток. из 50k.</div>
+            <div class="rline">Ожидает подтверждения публикации ревью.</div>
+          </div>
+        </div>
+      </div>
+      <div class="overlay">
+        <div class="modal">
+          <div class="mh"><span class="dot"></span><span class="mt">Требуется подтверждение</span><span class="kind">Master</span></div>
+          <div class="mb">
+            Публикация ревью в GitLab — это запись во внешнюю систему.
+            <div class="kv"><span class="kk">action</span><span class="vv">Publish Review</span></div>
+            <div class="kv"><span class="kk">target</span><span class="vv">!41 · the-forge</span></div>
+            <div class="kv"><span class="kk">capability</span><span class="vv">gitlab.publish-review</span></div>
+          </div>
+          <div class="ma">
+            <span class="btn btn-ghost">Отклонить</span>
+            <span class="btn btn-primary">Подтвердить и опубликовать</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="legend">
+    <span><i style="background:var(--tool)"></i> Tool</span>
+    <span><i style="background:var(--press)"></i> Press</span>
+    <span><i style="background:var(--master)"></i> Master / Memory</span>
+    <span><i style="background:var(--smith)"></i> Smith</span>
+    <span><i style="background:var(--crit)"></i> опасный Strike → подтверждение</span>
+  </div>
+
+  <!-- FRAME 3: standalone Widget -->
+  <div class="frame-cap">
+    <span class="n">03</span><span class="t">Widget — компактный, разворачивается при наведении</span>
+    <span class="d">по умолчанию узкая полоса со счётчиками; курсор раскрывает детали</span>
+  </div>
+  <div class="float-wrap">
+    <div class="widget">
+      <div class="wbar">
+        <span class="spark"></span>
+        <span class="wt">The Forge</span>
+        <span class="wmini">
+          <span class="m"><b>6</b> задач</span>
+          <span class="m"><b>3</b> MR</span>
+          <span class="ci" title="упал пайплайн"></span>
+          <span class="caret">▾</span>
+        </span>
+      </div>
+      <div class="wbody">
+        <div class="card">
+          <div class="card-h"><span class="src" style="background:var(--tool)"></span><span class="ct">Мои Jira-задачи</span><span class="add">+ создать</span></div>
+          <div class="list">
+            <div class="li"><span class="code">FORGE-12</span><span class="txt">StrikeResolver: версии</span><span class="pill warn">In Progress</span></div>
+            <div class="li"><span class="code">FORGE-14</span><span class="txt">Workshop: нав-рейл</span><span class="pill warn">In Progress</span></div>
+            <div class="li"><span class="code">FORGE-15</span><span class="txt">Grafana Tool</span><span class="pill neutral">To Do</span></div>
+            <div class="li"><span class="code">FORGE-16</span><span class="txt">Model Router: бюджеты</span><span class="pill neutral">To Do</span></div>
+            <div class="li"><span class="code">FORGE-18</span><span class="txt">Conveyor: автоапдейт</span><span class="pill neutral">To Do</span></div>
+            <div class="li"><span class="code">FORGE-19</span><span class="txt">Anvil: кэш Stock</span><span class="pill neutral">To Do</span></div>
+            <div class="li"><span class="code">FORGE-9</span><span class="txt">Secrets в Keychain</span><span class="pill good">Done</span></div>
+            <div class="li"><span class="code">FORGE-7</span><span class="txt">Capability Registry</span><span class="pill good">Done</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h"><span class="src" style="background:var(--press)"></span><span class="ct">Мои Merge Requests</span><span class="add">+ открыть MR</span></div>
+          <div class="list">
+            <div class="li"><span class="code">!41</span><span class="txt">P3: safe integrations</span><span class="pill open">opened</span></div>
+            <div class="li"><span class="code">!44</span><span class="txt">Anvil: минимальный Stock</span><span class="pill open">draft</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-h"><span class="src" style="background:var(--master)"></span><span class="ct">Пайплайны</span></div>
+          <div class="list">
+            <div class="li"><span class="code">#1208</span><span class="txt">!44 · compile</span><span class="pill warn">running</span></div>
+            <div class="li"><span class="code">#1205</span><span class="txt">!41 · test</span><span class="pill crit">failed</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="widget-hint">↑ по умолчанию — узкая полоса; наведите курсор, чтобы развернуть детали</p>
+
+  <!-- FRAME 4: tray popover -->
+  <div class="frame-cap">
+    <span class="n">04</span><span class="t">Трей-поповер</span>
+    <span class="d">отдельно от Widget: быстрый взгляд из трея + запуск Skill</span>
+  </div>
+  <div class="tray-wrap">
+    <div class="tray">
+      <div class="tray-h">
+        <span class="spark"></span><span class="tt">The Forge</span>
+        <span class="run mono">Review PR…</span>
+      </div>
+      <div class="tray-stats">
+        <div class="s"><div class="v">6</div><div class="k">задач</div></div>
+        <div class="s"><div class="v">3</div><div class="k">MR</div></div>
+        <div class="s"><div class="v" style="color:var(--crit)">1</div><div class="k">упал CI</div></div>
+      </div>
+      <div class="tray-list">
+        <div class="tray-li"><span class="code mono">!41</span><span>P3: safe integrations</span><span class="pill open">opened</span></div>
+        <div class="tray-li"><span class="code mono">#1205</span><span>!41 · test</span><span class="pill crit">failed</span></div>
+        <div class="tray-li"><span class="code mono">FORGE-14</span><span>Workshop нав-рейл</span><span class="pill warn">In Progress</span></div>
+      </div>
+      <div class="tray-foot"><span class="btn btn-primary">⚒ Запустить Skill</span></div>
+    </div>
+  </div>
+</div>
