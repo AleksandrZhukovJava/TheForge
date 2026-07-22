@@ -39,6 +39,15 @@ class GitLabIntegrationTest {
         assertEquals("opened", mr.state)
     }
 
+    @Test fun `listAssignedMergeRequests parses the list`() = runBlocking {
+        val mrs = client(
+            """[{"iid":41,"title":"P3: safe integrations","state":"opened"},
+                {"iid":44,"title":"Anvil","state":"opened"}]""",
+        ).listAssignedMergeRequests()
+        assertEquals(2, mrs.size)
+        assertEquals(41, mrs.first().iid)
+    }
+
     @Test fun `OpenMergeRequestTool is a TOOL and returns the MR`() = runBlocking {
         val tool = OpenMergeRequestTool(
             client("""{"iid":8,"title":"Feature","state":"opened"}"""),

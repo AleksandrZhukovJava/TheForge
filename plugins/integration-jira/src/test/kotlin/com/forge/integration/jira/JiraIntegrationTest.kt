@@ -39,6 +39,18 @@ class JiraIntegrationTest {
         assertEquals("FORGE-2", ref.key)
     }
 
+    @Test fun `searchAssignedToMe parses the issue list`() = runBlocking {
+        val issues = client(
+            """{"issues":[
+                {"key":"FORGE-1","fields":{"summary":"A","status":{"name":"In Progress"}}},
+                {"key":"FORGE-2","fields":{"summary":"B","status":{"name":"To Do"}}}
+            ]}""",
+        ).searchAssignedToMe()
+        assertEquals(2, issues.size)
+        assertEquals("FORGE-1", issues.first().key)
+        assertEquals("To Do", issues[1].fields.status.name)
+    }
+
     @Test fun `LoadJiraIssueTool is a TOOL and returns the issue`() = runBlocking {
         val tool = LoadJiraIssueTool(
             client("""{"key":"FORGE-1","fields":{"summary":"S","status":{"name":"Done"}}}"""),

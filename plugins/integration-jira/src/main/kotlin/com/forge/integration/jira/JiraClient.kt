@@ -5,6 +5,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.request.url
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -20,6 +21,7 @@ data class JiraConfig(val baseUrl: String)
 @Serializable data class JiraFields(val summary: String, val status: JiraStatus)
 @Serializable data class JiraStatus(val name: String)
 @Serializable data class JiraIssueRef(val key: String)
+@Serializable data class JiraSearchResponse(val issues: List<JiraIssue> = emptyList())
 
 @Serializable private data class CreateIssueRequest(val fields: CreateIssueFields)
 @Serializable private data class CreateIssueFields(
@@ -43,6 +45,19 @@ class JiraClient(
             header(HttpHeaders.Authorization, authHeader)
         }.bodyAsText()
         return json.decodeFromString(body)
+    }
+
+    /** Cheap personal poll: issues assigned to the current user, not Done, most-recently updated. */
+    suspend fun searchAssignedToMe(maxResults: Int = 20): List<JiraIssue> {
+        val body = http.get("${config.baseUrl}/rest/api/3/search") {
+            header(HttpHeaders.Authorization, authHeader)
+            url {
+                parameters.append("jql", "assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC")
+                parameters.append("maxResults", maxResults.toString())
+                parameters.append("fields", "summary,status")
+            }
+        }.bodyAsText()
+        return json.decodeFromString<JiraSearchResponse>(body).issues
     }
 
     suspend fun createIssue(project: String, summary: String, issueType: String = "Task"): JiraIssueRef {

@@ -16,7 +16,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.forge.executors.secret.InMemorySecretStore
 import com.forge.workshop.dashboard.DashboardHolder
-import com.forge.workshop.dashboard.SampleDashboardRepository
+import com.forge.workshop.dashboard.LiveDashboardRepository
 import com.forge.workshop.theme.ForgeTheme
 import com.forge.workshop.tray.SparkPainter
 import com.forge.workshop.widget.TrayPopover
@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
 fun main() = application {
     // Session secret store (dev). Swapped for an OS-keychain-backed store at packaging.
     val secrets = remember { InMemorySecretStore() }
-    val dashboard = remember { DashboardHolder(SampleDashboardRepository()) }
+    val dashboard = remember { DashboardHolder(LiveDashboardRepository(secrets)) }
     val scope = rememberCoroutineScope()
 
     var refreshMinutes by remember { mutableStateOf(3) }

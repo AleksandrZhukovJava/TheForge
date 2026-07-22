@@ -17,7 +17,11 @@ dependencies {
     implementation(project(":forge-sdk"))
     implementation(project(":forge-brain"))
     implementation(project(":forge-executors"))
+    implementation(project(":plugins:integration-jira"))
+    implementation(project(":plugins:integration-gitlab"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+    implementation("io.ktor:ktor-client-core:2.3.12")
+    implementation("io.ktor:ktor-client-cio:2.3.12")
 }
 
 compose.desktop {

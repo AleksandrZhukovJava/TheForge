@@ -5,6 +5,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.request.url
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -47,6 +48,19 @@ class GitLabClient(
     suspend fun loadMergeRequest(projectId: String, iid: Int): MergeRequest {
         val body = http.get("${config.baseUrl}/api/v4/projects/$projectId/merge_requests/$iid") {
             header("PRIVATE-TOKEN", token)
+        }.bodyAsText()
+        return json.decodeFromString(body)
+    }
+
+    /** Cheap personal poll: open merge requests assigned to the current user. */
+    suspend fun listAssignedMergeRequests(perPage: Int = 20): List<MergeRequest> {
+        val body = http.get("${config.baseUrl}/api/v4/merge_requests") {
+            header("PRIVATE-TOKEN", token)
+            url {
+                parameters.append("scope", "assigned_to_me")
+                parameters.append("state", "opened")
+                parameters.append("per_page", perPage.toString())
+            }
         }.bodyAsText()
         return json.decodeFromString(body)
     }

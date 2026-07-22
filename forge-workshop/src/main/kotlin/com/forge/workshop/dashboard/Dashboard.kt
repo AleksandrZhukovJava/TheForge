@@ -24,10 +24,13 @@ sealed interface DashboardState {
     data object NotConfigured : DashboardState
 }
 
-/** Where the widget/popover get their data. Swapped for a live Jira/GitLab repo next. */
+/** Where the widget/popover get their data. */
 interface DashboardRepository {
     suspend fun load(): DashboardData
 }
+
+/** Thrown by a repository when no integration is configured yet. */
+class NotConfiguredException : Exception()
 
 /** Placeholder data through the real refresh pipeline (so cadence + states are exercised now). */
 class SampleDashboardRepository : DashboardRepository {
@@ -46,6 +49,8 @@ class DashboardHolder(private val repo: DashboardRepository) {
         state = DashboardState.Loading
         state = try {
             DashboardState.Loaded(repo.load(), LocalTime.now().format(TIME))
+        } catch (e: NotConfiguredException) {
+            DashboardState.NotConfigured
         } catch (e: Exception) {
             DashboardState.Error(e.message ?: "ошибка загрузки")
         }
