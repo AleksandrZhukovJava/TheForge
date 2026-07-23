@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.PopupProperties
 import com.forge.brain.execute.StrikeExecutor
 import com.forge.brain.execute.StrikeOutcome
 import com.forge.brain.policy.DefaultPolicy
@@ -186,19 +187,18 @@ fun CreateIssueScreen(
             }
             Spacer(Modifier.height(18.dp))
             Column(modifier = Modifier.width(560.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (projects != null) {
-                    FieldPicker("Проект", projects!!.map { it.key to "${it.key} — ${it.name}" }, project) { project = it }
-                } else {
-                    OutlinedTextField(project, { project = it }, label = { Text("Проект (key)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    if (loadError != null) {
+                when {
+                    projects != null -> SearchPicker("Проект", projects!!.map { it.key to "${it.key} — ${it.name}" }, project) { project = it }
+                    loadError != null -> {
+                        OutlinedTextField(project, { project = it }, label = { Text("Проект (key)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                         Text("не удалось прочитать проекты (${loadError}) — введите вручную", color = forgeColors.warn, fontSize = 11.sp)
                     }
+                    else -> LoadingField("Проект", "читаю проекты…")
                 }
 
-                if (types != null && types!!.isNotEmpty()) {
-                    FieldPicker("Тип задачи", types!!.map { it.name to it.name }, issueType) { issueType = it }
-                } else {
-                    OutlinedTextField(issueType, { issueType = it }, label = { Text("Тип задачи") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                when {
+                    types != null && types!!.isNotEmpty() -> SearchPicker("Тип задачи", types!!.map { it.name to it.name }, issueType) { issueType = it }
+                    else -> OutlinedTextField(issueType, { issueType = it }, label = { Text("Тип задачи") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 }
 
                 OutlinedTextField(summary, { summary = it }, label = { Text("Заголовок") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -217,29 +217,43 @@ fun CreateIssueScreen(
     }
 }
 
+/** Type-to-filter picker: keep focus in the field (non-focusable menu) so you can search live. */
 @Composable
-private fun FieldPicker(label: String, options: List<Pair<String, String>>, selected: String, onSelect: (String) -> Unit) {
+private fun SearchPicker(label: String, options: List<Pair<String, String>>, selected: String, onSelect: (String) -> Unit) {
+    var query by remember(selected) { mutableStateOf(options.firstOrNull { it.first == selected }?.second ?: selected) }
     var expanded by remember { mutableStateOf(false) }
-    val selLabel = options.firstOrNull { it.first == selected }?.second ?: selected.ifBlank { "—" }
-    Box {
-        Row(
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
-                .border(1.dp, forgeColors.borderStrong, RoundedCornerShape(8.dp)).clickable { expanded = true }
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    val filtered = if (query.isBlank()) options else options.filter { it.second.contains(query, ignoreCase = true) }
+    Box(Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it; expanded = true },
+            label = { Text(label) },
+            singleLine = true,
+            trailingIcon = {
+                Text("▾", color = forgeColors.inkMuted, fontSize = 14.sp, modifier = Modifier.clickable { expanded = !expanded }.padding(end = 8.dp))
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        DropdownMenu(
+            expanded = expanded && filtered.isNotEmpty(),
+            onDismissRequest = { expanded = false },
+            properties = PopupProperties(focusable = false),
         ) {
-            Column(Modifier.weight(1f)) {
-                Text(label, color = forgeColors.inkFaint, fontSize = 11.sp)
-                Spacer(Modifier.height(2.dp))
-                Text(selLabel, color = forgeColors.ink, fontSize = 14.sp)
-            }
-            Text("▾", color = forgeColors.inkMuted, fontSize = 14.sp)
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEach { (key, lbl) ->
-                DropdownMenuItem(text = { Text(lbl) }, onClick = { onSelect(key); expanded = false })
+            filtered.take(60).forEach { (key, lbl) ->
+                DropdownMenuItem(text = { Text(lbl) }, onClick = { onSelect(key); query = lbl; expanded = false })
             }
         }
+    }
+}
+
+@Composable
+private fun LoadingField(label: String, text: String) {
+    Column(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).border(1.dp, forgeColors.border, RoundedCornerShape(8.dp)).padding(horizontal = 14.dp, vertical = 14.dp),
+    ) {
+        Text(label, color = forgeColors.inkFaint, fontSize = 11.sp)
+        Spacer(Modifier.height(2.dp))
+        Text(text, color = forgeColors.inkMuted, fontSize = 14.sp)
     }
 }
 
