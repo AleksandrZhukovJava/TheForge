@@ -6,9 +6,11 @@ import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.request.url
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.isSuccess
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -43,21 +45,44 @@ class JiraClient(
     suspend fun loadIssue(key: String): JiraIssue {
         val body = http.get("${config.baseUrl}/rest/api/3/issue/$key") {
             header(HttpHeaders.Authorization, authHeader)
-        }.bodyAsText()
+        }.readJson()
         return json.decodeFromString(body)
     }
 
-    /** Cheap personal poll: issues assigned to the current user, not Done, most-recently updated. */
+    /**
+     * Cheap personal poll: issues assigned to the current user, not Done, most-recently updated.
+     * Tries REST v3 (Cloud) then falls back to v2 (Server/Data Center).
+     */
     suspend fun searchAssignedToMe(maxResults: Int = 20): List<JiraIssue> {
-        val body = http.get("${config.baseUrl}/rest/api/3/search") {
-            header(HttpHeaders.Authorization, authHeader)
-            url {
-                parameters.append("jql", "assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC")
-                parameters.append("maxResults", maxResults.toString())
-                parameters.append("fields", "summary,status")
+        var last: Exception? = null
+        for (version in intArrayOf(3, 2)) {
+            try {
+                val body = http.get("${config.baseUrl}/rest/api/$version/search") {
+                    header(HttpHeaders.Authorization, authHeader)
+                    url {
+                        parameters.append("jql", "assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC")
+                        parameters.append("maxResults", maxResults.toString())
+                        parameters.append("fields", "summary,status")
+                    }
+                }.readJson()
+                return json.decodeFromString<JiraSearchResponse>(body).issues
+            } catch (e: Exception) {
+                last = e
             }
-        }.bodyAsText()
-        return json.decodeFromString<JiraSearchResponse>(body).issues
+        }
+        throw last ?: IllegalStateException("Jira search failed")
+    }
+
+    /** Validates the HTTP response and rejects non-JSON (e.g. an SSO/login HTML page). */
+    private suspend fun HttpResponse.readJson(): String {
+        val text = bodyAsText()
+        if (!status.isSuccess()) {
+            throw IllegalStateException("HTTP ${status.value} — проверьте Base URL, email и токен")
+        }
+        if (text.trimStart().startsWith("<")) {
+            throw IllegalStateException("сервер вернул HTML, не JSON — неверный Base URL или требуется вход (SSO)")
+        }
+        return text
     }
 
     suspend fun createIssue(project: String, summary: String, issueType: String = "Task"): JiraIssueRef {
@@ -68,7 +93,7 @@ class JiraClient(
             header(HttpHeaders.Authorization, authHeader)
             header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
             setBody(payload)
-        }.bodyAsText()
+        }.readJson()
         return json.decodeFromString(body)
     }
 }

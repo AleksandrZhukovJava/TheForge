@@ -19,8 +19,8 @@ import io.ktor.client.engine.cio.CIO
 class LiveDashboardRepository(private val secrets: SecretStore) : DashboardRepository {
 
     override suspend fun load(): DashboardData {
-        val jira = loadJira()
-        val mrs = loadMergeRequests()
+        val jira = named("Jira") { loadJira() }
+        val mrs = named("GitLab") { loadMergeRequests() }
         if (jira == null && mrs == null) throw NotConfiguredException()
         return DashboardData(
             jira = jira ?: emptyList(),
@@ -28,6 +28,16 @@ class LiveDashboardRepository(private val secrets: SecretStore) : DashboardRepos
             pipelines = emptyList(),
         )
     }
+
+    /** Prefix any failure with the integration name so the widget shows which one is misconfigured. */
+    private suspend fun <T> named(name: String, block: suspend () -> T?): T? =
+        try {
+            block()
+        } catch (e: NotConfiguredException) {
+            throw e
+        } catch (e: Exception) {
+            throw IllegalStateException("$name: ${e.message}", e)
+        }
 
     private suspend fun loadJira(): List<WRow>? {
         val url = secrets.get("jira.base-url")?.trimEnd('/') ?: return null

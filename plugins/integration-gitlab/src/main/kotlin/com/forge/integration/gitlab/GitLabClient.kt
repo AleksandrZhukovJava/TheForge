@@ -6,9 +6,11 @@ import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.request.url
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.isSuccess
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -48,7 +50,7 @@ class GitLabClient(
     suspend fun loadMergeRequest(projectId: String, iid: Int): MergeRequest {
         val body = http.get("${config.baseUrl}/api/v4/projects/$projectId/merge_requests/$iid") {
             header("PRIVATE-TOKEN", token)
-        }.bodyAsText()
+        }.readJson()
         return json.decodeFromString(body)
     }
 
@@ -61,7 +63,7 @@ class GitLabClient(
                 parameters.append("state", "opened")
                 parameters.append("per_page", perPage.toString())
             }
-        }.bodyAsText()
+        }.readJson()
         return json.decodeFromString(body)
     }
 
@@ -75,7 +77,19 @@ class GitLabClient(
             header("PRIVATE-TOKEN", token)
             header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
             setBody(json.encodeToString(OpenMrRequest(sourceBranch, targetBranch, title)))
-        }.bodyAsText()
+        }.readJson()
         return json.decodeFromString(body)
+    }
+
+    /** Validates the HTTP response and rejects non-JSON (e.g. an SSO/login HTML page). */
+    private suspend fun HttpResponse.readJson(): String {
+        val text = bodyAsText()
+        if (!status.isSuccess()) {
+            throw IllegalStateException("HTTP ${status.value} — проверьте Base URL и токен")
+        }
+        if (text.trimStart().startsWith("<")) {
+            throw IllegalStateException("сервер вернул HTML, не JSON — неверный Base URL или требуется вход (SSO)")
+        }
+        return text
     }
 }
