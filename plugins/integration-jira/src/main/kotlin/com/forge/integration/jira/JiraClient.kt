@@ -24,6 +24,9 @@ data class JiraConfig(val baseUrl: String)
 @Serializable data class JiraIssueRef(val key: String)
 @Serializable data class JiraSearchResponse(val issues: List<JiraIssue> = emptyList())
 @Serializable private data class JiraSearchRequest(val jql: String, val maxResults: Int, val fields: List<String>)
+@Serializable data class JiraProject(val key: String, val name: String = "")
+@Serializable data class JiraIssueType(val id: String = "", val name: String)
+@Serializable private data class CreateMetaTypes(val values: List<JiraIssueType> = emptyList(), val issueTypes: List<JiraIssueType> = emptyList())
 
 @Serializable private data class CreateIssueRequest(val fields: CreateIssueFields)
 @Serializable private data class CreateIssueFields(
@@ -90,6 +93,44 @@ class JiraClient(
             throw IllegalStateException("сервер вернул HTML, не JSON — неверный Base URL или требуется вход (SSO)")
         }
         return text
+    }
+
+    /** Projects visible to the current user (for the create-form picker). Cloud v3 then Server/DC v2. */
+    suspend fun getProjects(): List<JiraProject> {
+        var last: Exception? = null
+        for (version in intArrayOf(3, 2)) {
+            try {
+                val body = http.get("${config.baseUrl}/rest/api/$version/project") {
+                    header(HttpHeaders.Authorization, authHeader)
+                    header(HttpHeaders.Accept, "application/json")
+                }.readJson()
+                return json.decodeFromString<List<JiraProject>>(body).sortedBy { it.key }
+            } catch (e: Exception) {
+                last = e
+            }
+        }
+        throw last ?: IllegalStateException("Jira projects failed")
+    }
+
+    /**
+     * Issue types selectable when creating in a project, via granular createmeta
+     * (`/issue/createmeta/{key}/issuetypes` — the one path that exists on both Cloud and Server 8.4+).
+     */
+    suspend fun getIssueTypes(projectKey: String): List<JiraIssueType> {
+        var last: Exception? = null
+        for (version in intArrayOf(3, 2)) {
+            try {
+                val body = http.get("${config.baseUrl}/rest/api/$version/issue/createmeta/$projectKey/issuetypes") {
+                    header(HttpHeaders.Authorization, authHeader)
+                    header(HttpHeaders.Accept, "application/json")
+                }.readJson()
+                val meta = json.decodeFromString<CreateMetaTypes>(body)
+                return meta.values.ifEmpty { meta.issueTypes }.filter { it.name.isNotBlank() }
+            } catch (e: Exception) {
+                last = e
+            }
+        }
+        throw last ?: IllegalStateException("Jira issue types failed")
     }
 
     suspend fun createIssue(project: String, summary: String, issueType: String = "Task"): JiraIssueRef {
