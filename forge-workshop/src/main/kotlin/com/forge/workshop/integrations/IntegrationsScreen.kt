@@ -56,7 +56,7 @@ fun IntegrationsScreen(
         Text("Integrations", color = forgeColors.ink, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
         Spacer(Modifier.height(4.dp))
         Text(
-            "Токены хранятся в системном хранилище, не в коде и не в конфиге.",
+            "Токены сохраняются локально (…/TheForge) и переживают перезапуск. Ввести нужно один раз.",
             color = forgeColors.inkFaint,
             fontSize = 13.sp,
         )
