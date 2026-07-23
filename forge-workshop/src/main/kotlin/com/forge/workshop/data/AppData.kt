@@ -53,6 +53,8 @@ data class AppData(
     val done: Set<String> = emptySet(),
     /** Status columns for the Bench. */
     val blocks: List<TaskBlock> = defaultBlocks(),
+    /** Default Jira project key for the create form, e.g. "OPS". */
+    val jiraProjectKey: String = "",
 )
 
 /** Literal status assigned to local tasks so they fall into the matching block. */
@@ -145,4 +147,6 @@ class AppDataStore(private val file: Path) {
         }
 
     fun resetBlocks() = update { it.copy(blocks = defaultBlocks()) }
+
+    fun setJiraProjectKey(key: String) = update { it.copy(jiraProjectKey = key.trim()) }
 }

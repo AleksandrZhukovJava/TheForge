@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.forge.sdk.secret.SecretStore
 import com.forge.workshop.bench.BenchScreen
+import com.forge.workshop.create.CreateIssueScreen
 import com.forge.workshop.data.AppDataStore
 import com.forge.workshop.dashboard.DashboardState
 import com.forge.workshop.foundry.FoundryScreen
@@ -60,6 +61,12 @@ fun WorkshopApp(
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 val current = running
                 when {
+                    current != null && current.title == "Create Jira Story" -> CreateIssueScreen(
+                        secrets = secrets,
+                        store = store,
+                        onBack = { running = null },
+                        onFinished = { ok -> history.record("Create Jira Story", ok) },
+                    )
                     current != null -> RunnerScreen(
                         skill = current,
                         onBack = { running = null },

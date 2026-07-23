@@ -96,13 +96,23 @@ class JiraClient(
         val payload = json.encodeToString(
             CreateIssueRequest(CreateIssueFields(ProjectRef(project), summary, IssueTypeRef(issueType))),
         )
-        val body = http.post("${config.baseUrl}/rest/api/3/issue") {
-            header(HttpHeaders.Authorization, authHeader)
-            header(HttpHeaders.Accept, "application/json")
-            header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
-            setBody(payload)
-        }.readJson()
-        return json.decodeFromString(body)
+        // Try Cloud v3, then Server/DC v2. A failing attempt did not create anything (bad endpoint
+        // or auth), so retrying the other version is safe.
+        var last: Exception? = null
+        for (version in intArrayOf(3, 2)) {
+            try {
+                val body = http.post("${config.baseUrl}/rest/api/$version/issue") {
+                    header(HttpHeaders.Authorization, authHeader)
+                    header(HttpHeaders.Accept, "application/json")
+                    header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                    setBody(payload)
+                }.readJson()
+                return json.decodeFromString(body)
+            } catch (e: Exception) {
+                last = e
+            }
+        }
+        throw last ?: IllegalStateException("Jira create failed")
     }
 }
 
