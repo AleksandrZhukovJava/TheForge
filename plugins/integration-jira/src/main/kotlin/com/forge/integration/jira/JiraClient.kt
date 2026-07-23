@@ -95,6 +95,23 @@ class JiraClient(
         return text
     }
 
+    /** Cheap auth probe (`/myself`). Throws if the current auth header is not accepted. */
+    suspend fun ping() {
+        var last: Exception? = null
+        for (version in intArrayOf(3, 2)) {
+            try {
+                http.get("${config.baseUrl}/rest/api/$version/myself") {
+                    header(HttpHeaders.Authorization, authHeader)
+                    header(HttpHeaders.Accept, "application/json")
+                }.readJson()
+                return
+            } catch (e: Exception) {
+                last = e
+            }
+        }
+        throw last ?: IllegalStateException("Jira auth failed")
+    }
+
     /** Projects visible to the current user (for the create-form picker). Cloud v3 then Server/DC v2. */
     suspend fun getProjects(): List<JiraProject> {
         var last: Exception? = null

@@ -67,15 +67,35 @@ private sealed interface CreateStatus {
     data class Failed(val message: String) : CreateStatus
 }
 
-/** Reads Jira for a JiraClient with the right auth (Basic if email set, else Bearer PAT). */
+/**
+ * Runs [block] with a working JiraClient. Probes auth once (Basic if email is set, then Bearer PAT)
+ * via `/myself`, so the caller's block runs exactly once with the auth that Jira actually accepts —
+ * no double Master prompt, and no reliance on which scheme the dashboard happened to use.
+ */
 private suspend fun <T> withJira(secrets: SecretStore, block: suspend (JiraClient, base: String) -> T): T {
     val base = secrets.get("jira.base-url")?.trimEnd('/') ?: error("Jira не настроена — заполните Integrations")
     val token = secrets.get("jira.token") ?: error("Jira не настроена — заполните Integrations")
     val email = secrets.get("jira.email")
-    val auth = if (!email.isNullOrBlank()) JiraAuth.basic(email, token) else JiraAuth.bearer(token)
+    val auths = buildList {
+        if (!email.isNullOrBlank()) add(JiraAuth.basic(email, token))
+        add(JiraAuth.bearer(token))
+    }
     val http = HttpClient(CIO)
     return try {
-        block(JiraClient(http, JiraConfig(base), auth), base)
+        var working: JiraClient? = null
+        var last: Exception? = null
+        for (auth in auths) {
+            val client = JiraClient(http, JiraConfig(base), auth)
+            try {
+                client.ping()
+                working = client
+                break
+            } catch (e: Exception) {
+                last = e
+            }
+        }
+        val client = working ?: throw (last ?: IllegalStateException("Jira недоступна"))
+        block(client, base)
     } finally {
         http.close()
     }
