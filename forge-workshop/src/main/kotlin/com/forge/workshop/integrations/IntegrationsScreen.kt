@@ -48,6 +48,7 @@ fun IntegrationsScreen(
     secrets: SecretStore,
     refreshMinutes: Int,
     onIntervalChange: (Int) -> Unit,
+    onSaved: () -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
@@ -74,6 +75,7 @@ fun IntegrationsScreen(
             ),
             requiredKey = "jira.token",
             secrets = secrets,
+            onSaved = onSaved,
         )
         Spacer(Modifier.height(12.dp))
         IntegrationCard(
@@ -85,6 +87,7 @@ fun IntegrationsScreen(
             ),
             requiredKey = "gitlab.token",
             secrets = secrets,
+            onSaved = onSaved,
         )
     }
 }
@@ -139,6 +142,7 @@ private fun IntegrationCard(
     fields: List<Field>,
     requiredKey: String,
     secrets: SecretStore,
+    onSaved: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val values = remember { mutableStateMapOf<String, String>() }
@@ -184,6 +188,7 @@ private fun IntegrationCard(
                         if (v.isNotEmpty()) secrets.put(f.key, v)
                     }
                     configured = secrets.get(requiredKey) != null
+                    onSaved()
                 }
             }
         }

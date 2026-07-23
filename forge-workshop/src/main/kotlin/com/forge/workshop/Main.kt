@@ -64,6 +64,7 @@ fun main() = application {
                 secrets = secrets,
                 refreshMinutes = refreshMinutes,
                 onIntervalChange = { refreshMinutes = it },
+                onSaved = { scope.launch { dashboard.refresh() } },
             )
         }
     }

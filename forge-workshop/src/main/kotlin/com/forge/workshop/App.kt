@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.sp
 import com.forge.sdk.secret.SecretStore
 import com.forge.workshop.foundry.FoundryScreen
 import com.forge.workshop.foundry.SkillSpec
+import com.forge.workshop.history.HistoryScreen
+import com.forge.workshop.history.HistoryStore
 import com.forge.workshop.integrations.IntegrationsScreen
 import com.forge.workshop.nav.NavItem
 import com.forge.workshop.nav.NavRail
@@ -32,9 +34,11 @@ fun WorkshopApp(
     secrets: SecretStore,
     refreshMinutes: Int,
     onIntervalChange: (Int) -> Unit,
+    onSaved: () -> Unit,
 ) {
     var selected by remember { mutableStateOf(NavItem.FOUNDRY) }
     var running by remember { mutableStateOf<SkillSpec?>(null) }
+    val history = remember { HistoryStore() }
 
     Surface(color = forgeColors.ground, modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxSize()) {
@@ -43,10 +47,14 @@ fun WorkshopApp(
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 val current = running
                 when {
-                    current != null -> RunnerScreen(current, onBack = { running = null })
+                    current != null -> RunnerScreen(
+                        skill = current,
+                        onBack = { running = null },
+                        onFinished = { ok -> history.record(current.title, ok) },
+                    )
                     selected == NavItem.FOUNDRY -> FoundryScreen(onRun = { running = it })
-                    selected == NavItem.HISTORY -> Placeholder("History — скоро")
-                    else -> IntegrationsScreen(secrets, refreshMinutes, onIntervalChange)
+                    selected == NavItem.HISTORY -> HistoryScreen(history)
+                    else -> IntegrationsScreen(secrets, refreshMinutes, onIntervalChange, onSaved)
                 }
             }
         }

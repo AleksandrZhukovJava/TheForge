@@ -49,7 +49,7 @@ private enum class RunPhase { RUNNING, DONE, STOPPED }
 private enum class StepStatus { WAIT, RUNNING, CONFIRM, DONE, STOPPED }
 
 @Composable
-fun RunnerScreen(skill: SkillSpec, onBack: () -> Unit) {
+fun RunnerScreen(skill: SkillSpec, onBack: () -> Unit, onFinished: (Boolean) -> Unit) {
     val gate = remember { UiMasterGate() }
     val demo = remember(skill.title) { buildDemoRun(skill.title) }
     val statuses = remember(demo) {
@@ -73,18 +73,21 @@ fun RunnerScreen(skill: SkillSpec, onBack: () -> Unit) {
                     statuses[i] = StepStatus.STOPPED
                     logs.add("✗ ${step.name} — отклонено Master")
                     phase = RunPhase.STOPPED
+                    onFinished(false)
                     return@LaunchedEffect
                 }
                 is StrikeOutcome.Blocked -> {
                     statuses[i] = StepStatus.STOPPED
                     logs.add("✗ ${step.name} — заблокировано: ${outcome.reason}")
                     phase = RunPhase.STOPPED
+                    onFinished(false)
                     return@LaunchedEffect
                 }
             }
         }
         phase = RunPhase.DONE
         logs.add("Готово.")
+        onFinished(true)
     }
 
     Box(Modifier.fillMaxSize()) {
