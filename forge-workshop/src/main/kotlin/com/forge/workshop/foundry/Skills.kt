@@ -22,4 +22,5 @@ val sampleSkills = listOf(
     SkillSpec("Explain Service", "Объясняет сервис по коду и документации.", listOf(ExecTag.TOOL, ExecTag.SMITH)),
     SkillSpec("Investigate Production Error", "Тянет алерты и метрики Grafana и ищет причину.", listOf(ExecTag.TOOL, ExecTag.SMITH)),
     SkillSpec("Generate Liquibase Migration", "Готовит миграцию по описанию изменений схемы.", listOf(ExecTag.SMITH)),
+    SkillSpec("Create Two Jira Issues", "Демо свода правил: вторую задачу заблокирует лимит «не больше 1».", listOf(ExecTag.TOOL, ExecTag.MASTER)),
 )

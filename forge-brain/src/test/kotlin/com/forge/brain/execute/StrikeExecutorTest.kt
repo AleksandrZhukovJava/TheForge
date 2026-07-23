@@ -1,9 +1,12 @@
 package com.forge.brain.execute
 
+import com.forge.brain.policy.PolicyEngine
 import com.forge.brain.resolve.DefaultCapabilityRegistry
 import com.forge.brain.resolve.StrikeResolver
 import com.forge.brain.resolve.fakes.FakeGate
 import com.forge.brain.resolve.fakes.FakeProvider
+import com.forge.sdk.policy.Policy
+import com.forge.sdk.policy.Quota
 import com.forge.sdk.capability.CapabilityId
 import com.forge.sdk.capability.DangerLevel
 import com.forge.sdk.capability.ExecutorKind.TOOL
@@ -68,5 +71,18 @@ class StrikeExecutorTest {
         val (exec, _) = executor(gate)
         val outcome = exec.run(strike(), Stock.EMPTY)
         assertIs<StrikeOutcome.Blocked>(outcome)
+    }
+
+    @Test fun `policy forbidden blocks before execution`() = runBlocking {
+        val registry = DefaultCapabilityRegistry().apply { register(FakeProvider("tool", TOOL, X)) }
+        val exec = StrikeExecutor(StrikeResolver(registry), FakeGate(), PolicyEngine(Policy(forbidden = setOf(X))))
+        assertIs<StrikeOutcome.Blocked>(exec.run(strike(), Stock.EMPTY))
+    }
+
+    @Test fun `policy quota blocks the second execution`() = runBlocking {
+        val registry = DefaultCapabilityRegistry().apply { register(FakeProvider("tool", TOOL, X)) }
+        val exec = StrikeExecutor(StrikeResolver(registry), FakeGate(), PolicyEngine(Policy(quotas = listOf(Quota(X, max = 1)))))
+        assertIs<StrikeOutcome.Done>(exec.run(strike(), Stock.EMPTY))
+        assertIs<StrikeOutcome.Blocked>(exec.run(strike(), Stock.EMPTY))
     }
 }

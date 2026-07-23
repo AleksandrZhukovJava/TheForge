@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.forge.brain.execute.StrikeExecutor
 import com.forge.brain.execute.StrikeOutcome
+import com.forge.brain.policy.DefaultPolicy
+import com.forge.brain.policy.PolicyEngine
 import com.forge.brain.resolve.StrikeResolver
 import com.forge.sdk.capability.DangerLevel
 import com.forge.sdk.context.Stock
@@ -52,6 +54,7 @@ private enum class StepStatus { WAIT, RUNNING, CONFIRM, DONE, STOPPED }
 fun RunnerScreen(skill: SkillSpec, onBack: () -> Unit, onFinished: (Boolean) -> Unit) {
     val gate = remember { UiMasterGate() }
     val demo = remember(skill.title) { buildDemoRun(skill.title) }
+    val policy = remember(demo) { PolicyEngine(DefaultPolicy) }
     val statuses = remember(demo) {
         mutableStateListOf<StepStatus>().apply { repeat(demo.steps.size) { add(StepStatus.WAIT) } }
     }
@@ -59,7 +62,8 @@ fun RunnerScreen(skill: SkillSpec, onBack: () -> Unit, onFinished: (Boolean) -> 
     var phase by remember(demo) { mutableStateOf(RunPhase.RUNNING) }
 
     LaunchedEffect(demo) {
-        val executor = StrikeExecutor(StrikeResolver(demo.registry), gate)
+        policy.beginRun()
+        val executor = StrikeExecutor(StrikeResolver(demo.registry), gate, policy)
         logs.add("Собираю Stock и запускаю Recipe…")
         for (i in demo.steps.indices) {
             val step = demo.steps[i]

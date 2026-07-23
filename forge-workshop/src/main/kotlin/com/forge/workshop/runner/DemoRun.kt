@@ -71,7 +71,11 @@ fun buildDemoRun(title: String): DemoRun {
         )
         "Create Jira Story" -> listOf(
             Blueprint("Prepare fields", "Jira Tool", ExecTag.TOOL, "issues.prepare", ExecutorKind.TOOL),
-            Blueprint("Create Issue", "Jira Tool", ExecTag.TOOL, "issues.create", ExecutorKind.TOOL, danger = DangerLevel.CONFIRM, output = "FORGE-20"),
+            Blueprint("Create Issue", "Jira Tool", ExecTag.TOOL, "jira.create-issue", ExecutorKind.TOOL, danger = DangerLevel.CONFIRM, output = "FORGE-20"),
+        )
+        "Create Two Jira Issues" -> listOf(
+            Blueprint("Create Issue #1", "Jira Tool", ExecTag.TOOL, "jira.create-issue", ExecutorKind.TOOL, danger = DangerLevel.CONFIRM, output = "FORGE-20"),
+            Blueprint("Create Issue #2", "Jira Tool", ExecTag.TOOL, "jira.create-issue", ExecutorKind.TOOL, danger = DangerLevel.CONFIRM, output = "FORGE-21"),
         )
         "Open GitLab MR" -> listOf(
             Blueprint("Prepare branch diff", "GitLab Tool", ExecTag.TOOL, "vcs.prepare-mr", ExecutorKind.TOOL),
