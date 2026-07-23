@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -31,6 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.forge.workshop.data.AppDataStore
@@ -49,9 +51,11 @@ private data class BenchTask(
     val priority: Priority,
     val url: String?,
     val isLocal: Boolean,
+    val current: Boolean,
+    val blocked: Boolean,
 )
 
-/** Bench — the workbench: your Jira tasks + your own local tasks (ranked by priority) and MRs. */
+/** Bench — the workbench: Jira tasks + your own tasks, with priority, overlays and MRs. */
 @Composable
 fun BenchScreen(state: DashboardState, store: AppDataStore, onRefresh: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(24.dp)) {
@@ -72,7 +76,6 @@ fun BenchScreen(state: DashboardState, store: AppDataStore, onRefresh: () -> Uni
             )
         }
         Spacer(Modifier.height(18.dp))
-
         Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             TasksColumn(state, store, Modifier.weight(1f))
             MrColumn(state, Modifier.weight(1f))
@@ -83,35 +86,128 @@ fun BenchScreen(state: DashboardState, store: AppDataStore, onRefresh: () -> Uni
 @Composable
 private fun TasksColumn(state: DashboardState, store: AppDataStore, modifier: Modifier) {
     val jira = (state as? DashboardState.Loaded)?.data?.jira.orEmpty()
-    val tasks = buildList {
-        jira.forEach { add(BenchTask(it.code, it.code, it.text, it.status, store.jiraPriority(it.code), it.url, false)) }
-        store.data.localTasks.forEach { add(BenchTask(it.id, "своя", it.summary, null, it.priority, null, true)) }
-    }.sortedByDescending { it.priority.ordinal }
+    val all = buildList {
+        jira.forEach {
+            add(BenchTask(it.code, it.code, it.text, it.status, store.jiraPriority(it.code), it.url, false, it.code in store.data.current, it.code in store.data.blocked))
+        }
+        store.data.localTasks.forEach {
+            add(BenchTask(it.id, "своя", it.summary, null, it.priority, null, true, it.id in store.data.current, it.id in store.data.blocked))
+        }
+    }
+    val doneIds = store.data.done
+    val active = all.filterNot { it.id in doneIds }
+        .sortedWith(
+            compareByDescending<BenchTask> { it.current }
+                .thenBy { it.blocked }
+                .thenByDescending { it.priority.ordinal },
+        )
+    val done = all.filter { it.id in doneIds }
+
+    var editing by remember { mutableStateOf<String?>(null) }
 
     Column(modifier.fillMaxHeight()) {
-        SectionHeader("Мои задачи", forgeColors.tool, tasks.size)
+        SectionHeader("Мои задачи", forgeColors.tool, active.size)
         Spacer(Modifier.height(10.dp))
         AddLocalTask { store.addLocalTask(it) }
         Spacer(Modifier.height(10.dp))
         if (state is DashboardState.Error) {
             Text("Jira: ${state.message}", color = forgeColors.crit, fontSize = 12.sp)
             Spacer(Modifier.height(8.dp))
-        } else if (state is DashboardState.NotConfigured) {
-            Text("Jira не подключена — свои задачи всё равно работают.", color = forgeColors.inkFaint, fontSize = 12.sp)
-            Spacer(Modifier.height(8.dp))
         }
         Column(
             modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            tasks.forEach { task ->
+            active.forEach { task ->
                 TaskCard(
                     task = task,
-                    onCyclePriority = {
-                        if (task.isLocal) store.cycleLocalPriority(task.id) else store.cycleJiraPriority(task.code)
-                    },
-                    onDelete = if (task.isLocal) ({ store.deleteLocalTask(task.id) }) else null,
+                    store = store,
+                    isEditing = editing == task.id,
+                    onToggleEdit = { editing = if (editing == task.id) null else task.id },
+                    onSaveEdit = { store.updateLocalTask(task.id, it); editing = null },
                 )
+            }
+            if (done.isNotEmpty()) DoneSection(done, store)
+        }
+    }
+}
+
+@Composable
+private fun TaskCard(
+    task: BenchTask,
+    store: AppDataStore,
+    isEditing: Boolean,
+    onToggleEdit: () -> Unit,
+    onSaveEdit: (String) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .clip(RoundedCornerShape(11.dp))
+            .background(forgeColors.surface2)
+            .border(1.dp, forgeColors.border, RoundedCornerShape(11.dp)),
+    ) {
+        Box(Modifier.width(4.dp).fillMaxHeight().background(if (task.current) forgeColors.good else Color.Transparent))
+        Column(Modifier.weight(1f).padding(15.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                PriorityChip(task.priority) {
+                    if (task.isLocal) store.cycleLocalPriority(task.id) else store.cycleJiraPriority(task.code)
+                }
+                Spacer(Modifier.width(9.dp))
+                Text(task.code, color = if (task.isLocal) forgeColors.ember else forgeColors.inkMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                Spacer(Modifier.weight(1f))
+                if (task.blocked) {
+                    Text("заблок.", color = forgeColors.crit, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.width(8.dp))
+                }
+                if (task.status != null) StatusPill(task.status)
+            }
+            Spacer(Modifier.height(7.dp))
+            if (isEditing && task.isLocal) {
+                EditField(task.title, onSaveEdit)
+            } else {
+                Text(task.title, color = forgeColors.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Action("★ текущая", task.current, forgeColors.good) { store.toggleCurrent(task.id) }
+                Action("заблок.", task.blocked, forgeColors.crit) { store.toggleBlocked(task.id) }
+                Action("✓ готово", false, forgeColors.good) { store.toggleDone(task.id) }
+                if (task.isLocal) {
+                    Action("✎", isEditing, forgeColors.tool) { onToggleEdit() }
+                    Action("✕", false, forgeColors.crit) { store.deleteLocalTask(task.id) }
+                }
+                if (task.url != null) {
+                    Spacer(Modifier.weight(1f))
+                    Text("открыть ↗", color = forgeColors.ember, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable { openInBrowser(task.url) })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DoneSection(done: List<BenchTask>, store: AppDataStore) {
+    var open by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            "Выполнено · ${done.size}   ${if (open) "▲" else "▼"}",
+            color = forgeColors.inkFaint,
+            fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { open = !open }.padding(vertical = 6.dp),
+        )
+        if (open) {
+            done.forEach { task ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp)).background(forgeColors.surface1).padding(horizontal = 13.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(task.title, color = forgeColors.inkMuted, fontSize = 13.sp, textDecoration = TextDecoration.LineThrough)
+                    Spacer(Modifier.weight(1f))
+                    Action("вернуть", false, forgeColors.tool) { store.toggleDone(task.id) }
+                }
             }
         }
     }
@@ -138,6 +234,26 @@ private fun MrColumn(state: DashboardState, modifier: Modifier) {
 }
 
 @Composable
+private fun MrCard(row: WRow) {
+    Column(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp)).background(forgeColors.surface2)
+            .border(1.dp, forgeColors.border, RoundedCornerShape(11.dp)).padding(15.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(row.code, color = forgeColors.inkMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+            Spacer(Modifier.weight(1f))
+            StatusPill(row.status)
+        }
+        Spacer(Modifier.height(7.dp))
+        Text(row.text, color = forgeColors.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+        if (row.url != null) {
+            Spacer(Modifier.height(10.dp))
+            Text("открыть ↗", color = forgeColors.ember, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable { openInBrowser(row.url) })
+        }
+    }
+}
+
+@Composable
 private fun SectionHeader(title: String, accent: Color, count: Int) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(8.dp).height(8.dp).clip(RoundedCornerShape(2.dp)).background(accent))
@@ -151,10 +267,7 @@ private fun SectionHeader(title: String, accent: Color, count: Int) {
 @Composable
 private fun AddLocalTask(onAdd: (String) -> Unit) {
     var text by remember { mutableStateOf("") }
-    fun submit() {
-        onAdd(text)
-        text = ""
-    }
+    fun submit() { onAdd(text); text = "" }
     Row(verticalAlignment = Alignment.CenterVertically) {
         OutlinedTextField(
             value = text,
@@ -166,11 +279,7 @@ private fun AddLocalTask(onAdd: (String) -> Unit) {
         )
         Spacer(Modifier.width(8.dp))
         Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(9.dp))
-                .background(forgeColors.ember)
-                .clickable { submit() }
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier.clip(RoundedCornerShape(9.dp)).background(forgeColors.ember).clickable { submit() }.padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
             Text("＋", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
@@ -178,74 +287,30 @@ private fun AddLocalTask(onAdd: (String) -> Unit) {
 }
 
 @Composable
-private fun TaskCard(task: BenchTask, onCyclePriority: () -> Unit, onDelete: (() -> Unit)?) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(11.dp))
-            .background(forgeColors.surface2)
-            .border(1.dp, forgeColors.border, RoundedCornerShape(11.dp))
-            .padding(15.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            PriorityChip(task.priority, onCyclePriority)
-            Spacer(Modifier.width(9.dp))
-            Text(task.code, color = if (task.isLocal) forgeColors.ember else forgeColors.inkMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-            Spacer(Modifier.weight(1f))
-            if (task.status != null) StatusPill(task.status)
-            if (onDelete != null) {
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "✕",
-                    color = forgeColors.inkFaint,
-                    fontSize = 13.sp,
-                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { onDelete() }.padding(2.dp),
-                )
-            }
-        }
-        Spacer(Modifier.height(7.dp))
-        Text(task.title, color = forgeColors.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-        if (task.url != null) {
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "открыть ↗",
-                color = forgeColors.ember,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.clickable { openInBrowser(task.url) },
-            )
-        }
-    }
+private fun EditField(initial: String, onDone: (String) -> Unit) {
+    var value by remember { mutableStateOf(initial) }
+    OutlinedTextField(
+        value = value,
+        onValueChange = { value = it },
+        singleLine = true,
+        keyboardActions = KeyboardActions(onDone = { onDone(value) }),
+        trailingIcon = {
+            Text("↵", color = forgeColors.ember, fontSize = 15.sp, modifier = Modifier.clickable { onDone(value) }.padding(end = 8.dp))
+        },
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable
-private fun MrCard(row: WRow) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(11.dp))
-            .background(forgeColors.surface2)
-            .border(1.dp, forgeColors.border, RoundedCornerShape(11.dp))
-            .padding(15.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(row.code, color = forgeColors.inkMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-            Spacer(Modifier.weight(1f))
-            StatusPill(row.status)
-        }
-        Spacer(Modifier.height(7.dp))
-        Text(row.text, color = forgeColors.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-        if (row.url != null) {
-            Spacer(Modifier.height(10.dp))
-            Text(
-                "открыть ↗",
-                color = forgeColors.ember,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.clickable { openInBrowser(row.url) },
-            )
-        }
-    }
+private fun Action(label: String, active: Boolean, activeColor: Color, onClick: () -> Unit) {
+    Text(
+        label,
+        color = if (active) activeColor else forgeColors.inkFaint,
+        fontSize = 11.sp,
+        fontFamily = FontFamily.Monospace,
+        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+        modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { onClick() }.padding(horizontal = 7.dp, vertical = 3.dp),
+    )
 }
 
 @Composable
@@ -257,11 +322,7 @@ private fun PriorityChip(priority: Priority, onClick: () -> Unit) {
         Priority.NONE -> "—" to forgeColors.inkFaint
     }
     Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .border(1.dp, color.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
-            .clickable { onClick() }
-            .padding(horizontal = 8.dp, vertical = 3.dp),
+        modifier = Modifier.clip(RoundedCornerShape(6.dp)).border(1.dp, color.copy(alpha = 0.5f), RoundedCornerShape(6.dp)).clickable { onClick() }.padding(horizontal = 8.dp, vertical = 3.dp),
     ) {
         Text(label, color = color, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
     }

@@ -30,6 +30,12 @@ data class AppData(
     val localTasks: List<LocalTask> = emptyList(),
     /** Priority override for Jira issues, keyed by issue key. */
     val jiraPriority: Map<String, Priority> = emptyMap(),
+    /** Task ids/keys marked «текущая» (highlighted). */
+    val current: Set<String> = emptySet(),
+    /** Task ids/keys marked blocked. */
+    val blocked: Set<String> = emptySet(),
+    /** Task ids/keys marked done — a local overlay; a Jira issue is never changed in Jira. */
+    val done: Set<String> = emptySet(),
 )
 
 /**
@@ -81,4 +87,25 @@ class AppDataStore(private val file: Path) {
         }
 
     fun jiraPriority(key: String): Priority = data.jiraPriority[key] ?: Priority.NONE
+
+    fun toggleCurrent(id: String) = update { d ->
+        // «текущая» is cleared when a task is blocked or done.
+        d.copy(current = if (id in d.current) d.current - id else d.current + id)
+    }
+
+    fun toggleBlocked(id: String) = update { d ->
+        val nowBlocked = id !in d.blocked
+        d.copy(
+            blocked = if (nowBlocked) d.blocked + id else d.blocked - id,
+            current = if (nowBlocked) d.current - id else d.current,
+        )
+    }
+
+    fun toggleDone(id: String) = update { d ->
+        val nowDone = id !in d.done
+        d.copy(
+            done = if (nowDone) d.done + id else d.done - id,
+            current = if (nowDone) d.current - id else d.current,
+        )
+    }
 }
