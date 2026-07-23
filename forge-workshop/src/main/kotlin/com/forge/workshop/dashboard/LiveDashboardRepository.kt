@@ -55,7 +55,7 @@ class LiveDashboardRepository(private val secrets: SecretStore) : DashboardRepos
             for (auth in auths) {
                 try {
                     result = JiraClient(http, JiraConfig(base), auth).searchAssignedToMe()
-                        .map { WRow(it.key, it.fields.summary, mapJiraStatus(it.fields.status.name), url = "$base/browse/${it.key}") }
+                        .map { WRow(it.key, it.fields.summary, mapJiraStatus(it.fields.status.name), url = "$base/browse/${it.key}", statusName = it.fields.status.name) }
                     break
                 } catch (e: Exception) {
                     last = e
@@ -74,7 +74,7 @@ class LiveDashboardRepository(private val secrets: SecretStore) : DashboardRepos
         return try {
             GitLabClient(http, GitLabConfig(url), token)
                 .listAssignedMergeRequests()
-                .map { WRow("!${it.iid}", it.title, mapMrState(it.state), url = it.webUrl) }
+                .map { WRow("!${it.iid}", it.title, mapMrState(it.state), url = it.webUrl, statusName = it.state) }
         } finally {
             http.close()
         }

@@ -2,7 +2,7 @@ package com.forge.workshop.widget
 
 import com.forge.workshop.ui.PillStatus
 
-data class WRow(val code: String, val text: String, val status: PillStatus, val url: String? = null)
+data class WRow(val code: String, val text: String, val status: PillStatus, val url: String? = null, val statusName: String? = null)
 
 /** Long enough to demonstrate scroll-only-when-many. */
 val jiraRows = listOf(

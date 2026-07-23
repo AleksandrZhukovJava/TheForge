@@ -25,6 +25,21 @@ data class LocalTask(
     val priority: Priority = Priority.NONE,
 )
 
+/** A named group of statuses — a column on the Bench. Local tasks match the literal "Своя задача". */
+@Serializable
+data class TaskBlock(
+    val id: String,
+    val name: String,
+    val statuses: List<String> = emptyList(),
+)
+
+fun defaultBlocks(): List<TaskBlock> = listOf(
+    TaskBlock("in-progress", "В работе", listOf("In Progress", "В работе", "In Development")),
+    TaskBlock("review", "Ревью", listOf("Review", "Code Review", "In Review", "Ревью", "На проверке")),
+    TaskBlock("todo", "К выполнению", listOf("To Do", "Open", "Backlog", "Selected for Development", "К выполнению")),
+    TaskBlock("local", "Свои", listOf("Своя задача")),
+)
+
 @Serializable
 data class AppData(
     val localTasks: List<LocalTask> = emptyList(),
@@ -36,7 +51,12 @@ data class AppData(
     val blocked: Set<String> = emptySet(),
     /** Task ids/keys marked done — a local overlay; a Jira issue is never changed in Jira. */
     val done: Set<String> = emptySet(),
+    /** Status columns for the Bench. */
+    val blocks: List<TaskBlock> = defaultBlocks(),
 )
+
+/** Literal status assigned to local tasks so they fall into the matching block. */
+const val LOCAL_STATUS = "Своя задача"
 
 /**
  * Persistent local data (own tasks + priority overlays), JSON-backed. Observable so the Bench
@@ -108,4 +128,21 @@ class AppDataStore(private val file: Path) {
             current = if (nowDone) d.current - id else d.current,
         )
     }
+
+    // --- Blocks config ---
+
+    fun addBlock() = update { it.copy(blocks = it.blocks + TaskBlock(UUID.randomUUID().toString(), "Новый блок")) }
+
+    fun deleteBlock(id: String) = update { d -> d.copy(blocks = d.blocks.filterNot { it.id == id }) }
+
+    fun setBlockName(id: String, name: String) =
+        update { d -> d.copy(blocks = d.blocks.map { if (it.id == id) it.copy(name = name) else it }) }
+
+    fun setBlockStatuses(id: String, csv: String) =
+        update { d ->
+            val statuses = csv.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+            d.copy(blocks = d.blocks.map { if (it.id == id) it.copy(statuses = statuses) else it })
+        }
+
+    fun resetBlocks() = update { it.copy(blocks = defaultBlocks()) }
 }

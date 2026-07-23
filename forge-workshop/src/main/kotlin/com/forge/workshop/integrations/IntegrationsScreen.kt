@@ -38,6 +38,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.forge.sdk.secret.SecretStore
+import com.forge.workshop.data.AppDataStore
+import com.forge.workshop.data.TaskBlock
 import com.forge.workshop.theme.forgeColors
 import kotlinx.coroutines.launch
 
@@ -49,6 +51,7 @@ fun IntegrationsScreen(
     refreshMinutes: Int,
     onIntervalChange: (Int) -> Unit,
     onSaved: () -> Unit,
+    store: AppDataStore,
 ) {
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
@@ -63,6 +66,8 @@ fun IntegrationsScreen(
         Spacer(Modifier.height(18.dp))
 
         RefreshCard(refreshMinutes, onIntervalChange)
+        Spacer(Modifier.height(12.dp))
+        BlocksCard(store)
         Spacer(Modifier.height(12.dp))
 
         IntegrationCard(
@@ -115,6 +120,80 @@ private fun RefreshCard(refreshMinutes: Int, onIntervalChange: (Int) -> Unit) {
                 IntervalChip(m, selected = m == refreshMinutes) { onIntervalChange(m) }
             }
         }
+    }
+}
+
+@Composable
+private fun BlocksCard(store: AppDataStore) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(forgeColors.surface2)
+            .border(1.dp, forgeColors.border, RoundedCornerShape(12.dp))
+            .padding(18.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Блоки задач", color = forgeColors.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.weight(1f))
+            Text(
+                "сбросить",
+                color = forgeColors.inkMuted,
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { store.resetBlocks() }.padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "＋ блок",
+                color = forgeColors.ember,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { store.addBlock() }.padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Колонки на Bench: имя + статусы Jira через запятую. «Своя задача» = локальные задачи.",
+            color = forgeColors.inkFaint,
+            fontSize = 12.sp,
+        )
+        Spacer(Modifier.height(12.dp))
+        store.data.blocks.forEach { block ->
+            BlockRow(block, store)
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+@Composable
+private fun BlockRow(block: TaskBlock, store: AppDataStore) {
+    var name by remember(block.id) { mutableStateOf(block.name) }
+    var statuses by remember(block.id) { mutableStateOf(block.statuses.joinToString(", ")) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it; store.setBlockName(block.id, it) },
+            label = { Text("имя") },
+            singleLine = true,
+            modifier = Modifier.weight(0.9f),
+        )
+        Spacer(Modifier.width(8.dp))
+        OutlinedTextField(
+            value = statuses,
+            onValueChange = { statuses = it; store.setBlockStatuses(block.id, it) },
+            label = { Text("статусы через запятую") },
+            singleLine = true,
+            modifier = Modifier.weight(1.4f),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            "✕",
+            color = forgeColors.crit,
+            fontSize = 14.sp,
+            modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { store.deleteBlock(block.id) }.padding(8.dp),
+        )
     }
 }
 

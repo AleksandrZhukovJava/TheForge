@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.forge.workshop.data.AppDataStore
+import com.forge.workshop.data.LOCAL_STATUS
 import com.forge.workshop.data.Priority
 import com.forge.workshop.dashboard.DashboardState
 import com.forge.workshop.theme.forgeColors
@@ -53,6 +54,7 @@ private data class BenchTask(
     val isLocal: Boolean,
     val current: Boolean,
     val blocked: Boolean,
+    val statusName: String?,
 )
 
 /** Bench — the workbench: Jira tasks + your own tasks, with priority, overlays and MRs. */
@@ -88,20 +90,22 @@ private fun TasksColumn(state: DashboardState, store: AppDataStore, modifier: Mo
     val jira = (state as? DashboardState.Loaded)?.data?.jira.orEmpty()
     val all = buildList {
         jira.forEach {
-            add(BenchTask(it.code, it.code, it.text, it.status, store.jiraPriority(it.code), it.url, false, it.code in store.data.current, it.code in store.data.blocked))
+            add(BenchTask(it.code, it.code, it.text, it.status, store.jiraPriority(it.code), it.url, false, it.code in store.data.current, it.code in store.data.blocked, it.statusName))
         }
         store.data.localTasks.forEach {
-            add(BenchTask(it.id, "своя", it.summary, null, it.priority, null, true, it.id in store.data.current, it.id in store.data.blocked))
+            add(BenchTask(it.id, "своя", it.summary, null, it.priority, null, true, it.id in store.data.current, it.id in store.data.blocked, LOCAL_STATUS))
         }
     }
     val doneIds = store.data.done
     val active = all.filterNot { it.id in doneIds }
-        .sortedWith(
-            compareByDescending<BenchTask> { it.current }
-                .thenBy { it.blocked }
-                .thenByDescending { it.priority.ordinal },
-        )
     val done = all.filter { it.id in doneIds }
+
+    val cmp = compareByDescending<BenchTask> { it.current }.thenBy { it.blocked }.thenByDescending { it.priority.ordinal }
+    val blocks = store.data.blocks
+    fun blockName(t: BenchTask): String =
+        blocks.firstOrNull { b -> b.statuses.any { it.equals(t.statusName, ignoreCase = true) } }?.name ?: "Прочее"
+    val grouped = active.groupBy { blockName(it) }
+    val orderedNames = (blocks.map { it.name } + "Прочее").distinct()
 
     var editing by remember { mutableStateOf<String?>(null) }
 
@@ -116,19 +120,38 @@ private fun TasksColumn(state: DashboardState, store: AppDataStore, modifier: Mo
         }
         Column(
             modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            active.forEach { task ->
-                TaskCard(
-                    task = task,
-                    store = store,
-                    isEditing = editing == task.id,
-                    onToggleEdit = { editing = if (editing == task.id) null else task.id },
-                    onSaveEdit = { store.updateLocalTask(task.id, it); editing = null },
-                )
+            orderedNames.forEach { name ->
+                val items = grouped[name].orEmpty().sortedWith(cmp)
+                if (items.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        BlockHeader(name, items.size)
+                        items.forEach { task ->
+                            TaskCard(
+                                task = task,
+                                store = store,
+                                isEditing = editing == task.id,
+                                onToggleEdit = { editing = if (editing == task.id) null else task.id },
+                                onSaveEdit = { store.updateLocalTask(task.id, it); editing = null },
+                            )
+                        }
+                    }
+                }
             }
             if (done.isNotEmpty()) DoneSection(done, store)
         }
+    }
+}
+
+@Composable
+private fun BlockHeader(name: String, count: Int) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(name.uppercase(), color = forgeColors.inkMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.width(8.dp))
+        Text(count.toString(), color = forgeColors.inkFaint, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+        Spacer(Modifier.width(10.dp))
+        Box(Modifier.weight(1f).height(1.dp).background(forgeColors.border))
     }
 }
 

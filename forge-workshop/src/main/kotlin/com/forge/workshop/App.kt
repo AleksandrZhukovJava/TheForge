@@ -68,7 +68,7 @@ fun WorkshopApp(
                     selected == NavItem.BENCH -> BenchScreen(dashboardState, store, onRefresh)
                     selected == NavItem.FOUNDRY -> FoundryScreen(onRun = { running = it })
                     selected == NavItem.HISTORY -> HistoryScreen(history)
-                    else -> IntegrationsScreen(secrets, refreshMinutes, onIntervalChange, onSaved)
+                    else -> IntegrationsScreen(secrets, refreshMinutes, onIntervalChange, onSaved, store)
                 }
             }
         }
