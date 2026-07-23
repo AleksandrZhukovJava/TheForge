@@ -41,13 +41,27 @@ class LiveDashboardRepository(private val secrets: SecretStore) : DashboardRepos
 
     private suspend fun loadJira(): List<WRow>? {
         val url = secrets.get("jira.base-url")?.trimEnd('/') ?: return null
-        val email = secrets.get("jira.email") ?: return null
         val token = secrets.get("jira.token") ?: return null
+        val email = secrets.get("jira.email")
+        // Email present → Cloud Basic; also try Bearer PAT (Server/Data Center).
+        val auths = buildList {
+            if (!email.isNullOrBlank()) add(JiraAuth.basic(email, token))
+            add(JiraAuth.bearer(token))
+        }
         val http = HttpClient(CIO)
         return try {
-            JiraClient(http, JiraConfig(url), JiraAuth.basic(email, token))
-                .searchAssignedToMe()
-                .map { WRow(it.key, it.fields.summary, mapJiraStatus(it.fields.status.name)) }
+            var result: List<WRow>? = null
+            var last: Exception? = null
+            for (auth in auths) {
+                try {
+                    result = JiraClient(http, JiraConfig(url), auth).searchAssignedToMe()
+                        .map { WRow(it.key, it.fields.summary, mapJiraStatus(it.fields.status.name)) }
+                    break
+                } catch (e: Exception) {
+                    last = e
+                }
+            }
+            result ?: throw (last ?: IllegalStateException("не удалось получить задачи"))
         } finally {
             http.close()
         }

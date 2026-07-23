@@ -58,6 +58,7 @@ class GitLabClient(
     suspend fun listAssignedMergeRequests(perPage: Int = 20): List<MergeRequest> {
         val body = http.get("${config.baseUrl}/api/v4/merge_requests") {
             header("PRIVATE-TOKEN", token)
+            header(HttpHeaders.Accept, "application/json")
             url {
                 parameters.append("scope", "assigned_to_me")
                 parameters.append("state", "opened")
