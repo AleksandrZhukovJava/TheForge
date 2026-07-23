@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import com.forge.workshop.theme.forgeColors
 
 enum class NavItem(val label: String) {
+    BENCH("Bench"),
     FOUNDRY("Foundry"),
     HISTORY("History"),
     INTEGRATIONS("Integrations"),
@@ -121,6 +122,12 @@ private fun NavIcon(item: NavItem, tint: Color) {
     Canvas(modifier = Modifier.size(18.dp)) {
         val s = size.minDimension
         when (item) {
+            NavItem.BENCH -> {
+                // workbench: a top and two legs
+                drawLine(tint, Offset(s * 0.14f, s * 0.4f), Offset(s * 0.86f, s * 0.4f), s * 0.11f, StrokeCap.Round)
+                drawLine(tint, Offset(s * 0.27f, s * 0.42f), Offset(s * 0.27f, s * 0.82f), s * 0.09f, StrokeCap.Round)
+                drawLine(tint, Offset(s * 0.73f, s * 0.42f), Offset(s * 0.73f, s * 0.82f), s * 0.09f, StrokeCap.Round)
+            }
             NavItem.FOUNDRY -> {
                 val cell = s * 0.34f
                 val a = s * 0.13f

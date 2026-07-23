@@ -40,7 +40,7 @@ class LiveDashboardRepository(private val secrets: SecretStore) : DashboardRepos
         }
 
     private suspend fun loadJira(): List<WRow>? {
-        val url = secrets.get("jira.base-url")?.trimEnd('/') ?: return null
+        val base = secrets.get("jira.base-url")?.trimEnd('/') ?: return null
         val token = secrets.get("jira.token") ?: return null
         val email = secrets.get("jira.email")
         // Email present → Cloud Basic; also try Bearer PAT (Server/Data Center).
@@ -54,8 +54,8 @@ class LiveDashboardRepository(private val secrets: SecretStore) : DashboardRepos
             var last: Exception? = null
             for (auth in auths) {
                 try {
-                    result = JiraClient(http, JiraConfig(url), auth).searchAssignedToMe()
-                        .map { WRow(it.key, it.fields.summary, mapJiraStatus(it.fields.status.name)) }
+                    result = JiraClient(http, JiraConfig(base), auth).searchAssignedToMe()
+                        .map { WRow(it.key, it.fields.summary, mapJiraStatus(it.fields.status.name), url = "$base/browse/${it.key}") }
                     break
                 } catch (e: Exception) {
                     last = e
@@ -74,7 +74,7 @@ class LiveDashboardRepository(private val secrets: SecretStore) : DashboardRepos
         return try {
             GitLabClient(http, GitLabConfig(url), token)
                 .listAssignedMergeRequests()
-                .map { WRow("!${it.iid}", it.title, mapMrState(it.state)) }
+                .map { WRow("!${it.iid}", it.title, mapMrState(it.state), url = it.webUrl) }
         } finally {
             http.close()
         }

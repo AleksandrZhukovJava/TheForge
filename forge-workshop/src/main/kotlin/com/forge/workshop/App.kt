@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -18,6 +19,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.forge.sdk.secret.SecretStore
+import com.forge.workshop.bench.BenchScreen
+import com.forge.workshop.dashboard.DashboardState
 import com.forge.workshop.foundry.FoundryScreen
 import com.forge.workshop.foundry.SkillSpec
 import com.forge.workshop.history.HistoryScreen
@@ -35,10 +38,18 @@ fun WorkshopApp(
     refreshMinutes: Int,
     onIntervalChange: (Int) -> Unit,
     onSaved: () -> Unit,
+    dashboardState: DashboardState,
+    onRefresh: () -> Unit,
 ) {
-    var selected by remember { mutableStateOf(NavItem.FOUNDRY) }
+    var selected by remember { mutableStateOf(NavItem.BENCH) }
     var running by remember { mutableStateOf<SkillSpec?>(null) }
     val history = remember { HistoryStore() }
+
+    // Fetch fresh data whenever the Bench is opened (background polling only runs while the
+    // widget/popover is visible).
+    LaunchedEffect(selected) {
+        if (selected == NavItem.BENCH) onRefresh()
+    }
 
     Surface(color = forgeColors.ground, modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxSize()) {
@@ -52,6 +63,7 @@ fun WorkshopApp(
                         onBack = { running = null },
                         onFinished = { ok -> history.record(current.title, ok) },
                     )
+                    selected == NavItem.BENCH -> BenchScreen(dashboardState, onRefresh)
                     selected == NavItem.FOUNDRY -> FoundryScreen(onRun = { running = it })
                     selected == NavItem.HISTORY -> HistoryScreen(history)
                     else -> IntegrationsScreen(secrets, refreshMinutes, onIntervalChange, onSaved)
