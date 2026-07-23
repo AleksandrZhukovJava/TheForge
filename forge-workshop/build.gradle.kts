@@ -3,6 +3,7 @@ import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 plugins {
     kotlin("jvm")
     kotlin("plugin.compose")
+    kotlin("plugin.serialization")
     id("org.jetbrains.compose")
 }
 
@@ -20,6 +21,7 @@ dependencies {
     implementation(project(":plugins:integration-jira"))
     implementation(project(":plugins:integration-gitlab"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("io.ktor:ktor-client-core:2.3.12")
     implementation("io.ktor:ktor-client-cio:2.3.12")
 }

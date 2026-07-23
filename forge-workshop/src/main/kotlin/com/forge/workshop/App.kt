@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.forge.sdk.secret.SecretStore
 import com.forge.workshop.bench.BenchScreen
+import com.forge.workshop.data.AppDataStore
 import com.forge.workshop.dashboard.DashboardState
 import com.forge.workshop.foundry.FoundryScreen
 import com.forge.workshop.foundry.SkillSpec
@@ -40,6 +41,7 @@ fun WorkshopApp(
     onSaved: () -> Unit,
     dashboardState: DashboardState,
     onRefresh: () -> Unit,
+    store: AppDataStore,
 ) {
     var selected by remember { mutableStateOf(NavItem.BENCH) }
     var running by remember { mutableStateOf<SkillSpec?>(null) }
@@ -63,7 +65,7 @@ fun WorkshopApp(
                         onBack = { running = null },
                         onFinished = { ok -> history.record(current.title, ok) },
                     )
-                    selected == NavItem.BENCH -> BenchScreen(dashboardState, onRefresh)
+                    selected == NavItem.BENCH -> BenchScreen(dashboardState, store, onRefresh)
                     selected == NavItem.FOUNDRY -> FoundryScreen(onRun = { running = it })
                     selected == NavItem.HISTORY -> HistoryScreen(history)
                     else -> IntegrationsScreen(secrets, refreshMinutes, onIntervalChange, onSaved)

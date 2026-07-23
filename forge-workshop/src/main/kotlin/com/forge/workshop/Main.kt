@@ -16,6 +16,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.forge.executors.secret.FileSecretStore
 import com.forge.executors.secret.ForgeDirs
+import com.forge.workshop.data.AppDataStore
 import com.forge.workshop.dashboard.DashboardHolder
 import com.forge.workshop.dashboard.LiveDashboardRepository
 import com.forge.workshop.theme.ForgeTheme
@@ -28,6 +29,7 @@ import kotlinx.coroutines.launch
 fun main() = application {
     // Persistent secret store — tokens survive restarts (OS-keychain-backed store is the next upgrade).
     val secrets = remember { FileSecretStore(ForgeDirs.dataDir().resolve("secrets.properties")) }
+    val appData = remember { AppDataStore(ForgeDirs.dataDir().resolve("appdata.json")) }
     val dashboard = remember { DashboardHolder(LiveDashboardRepository(secrets)) }
     val scope = rememberCoroutineScope()
 
@@ -68,6 +70,7 @@ fun main() = application {
                 onSaved = { scope.launch { dashboard.refresh() } },
                 dashboardState = dashboard.state,
                 onRefresh = { scope.launch { dashboard.refresh() } },
+                store = appData,
             )
         }
     }
