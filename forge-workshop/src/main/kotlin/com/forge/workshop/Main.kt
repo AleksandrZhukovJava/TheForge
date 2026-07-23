@@ -14,7 +14,8 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
-import com.forge.executors.secret.InMemorySecretStore
+import com.forge.executors.secret.FileSecretStore
+import com.forge.executors.secret.ForgeDirs
 import com.forge.workshop.dashboard.DashboardHolder
 import com.forge.workshop.dashboard.LiveDashboardRepository
 import com.forge.workshop.theme.ForgeTheme
@@ -25,8 +26,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 fun main() = application {
-    // Session secret store (dev). Swapped for an OS-keychain-backed store at packaging.
-    val secrets = remember { InMemorySecretStore() }
+    // Persistent secret store — tokens survive restarts (OS-keychain-backed store is the next upgrade).
+    val secrets = remember { FileSecretStore(ForgeDirs.dataDir().resolve("secrets.properties")) }
     val dashboard = remember { DashboardHolder(LiveDashboardRepository(secrets)) }
     val scope = rememberCoroutineScope()
 
