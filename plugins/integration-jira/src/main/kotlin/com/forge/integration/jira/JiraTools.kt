@@ -47,6 +47,7 @@ class CreateJiraIssueTool(
         val project = strike.input["project"] as? String ?: error("missing input 'project'")
         val summary = strike.input["summary"] as? String ?: error("missing input 'summary'")
         val issueType = strike.input["issueType"] as? String ?: "Task"
-        return StrikeResult(strike.id, output = client.createIssue(project, summary, issueType))
+        val description = strike.input["description"] as? String
+        return StrikeResult(strike.id, output = client.createIssue(project, summary, issueType, description))
     }
 }

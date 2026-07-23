@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedTextField
@@ -53,6 +55,8 @@ import com.forge.sdk.domain.StrikeDecl
 import com.forge.sdk.domain.StrikeId
 import com.forge.sdk.secret.SecretStore
 import com.forge.workshop.data.AppDataStore
+import com.forge.workshop.llm.LlmClient
+import com.forge.workshop.llm.LlmProfile
 import com.forge.workshop.runner.ConfirmModal
 import com.forge.workshop.runner.UiMasterGate
 import com.forge.workshop.theme.forgeColors
@@ -116,9 +120,33 @@ fun CreateIssueScreen(
     var types by remember { mutableStateOf<List<JiraIssueType>?>(null) }
     var issueType by remember { mutableStateOf("Task") }
     var summary by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var aiText by remember { mutableStateOf("") }
+    var generating by remember { mutableStateOf(false) }
+    var genError by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<CreateStatus>(CreateStatus.Idle) }
     val gate = remember { UiMasterGate() }
     val scope = rememberCoroutineScope()
+
+    fun generate() {
+        if (aiText.isBlank()) return
+        scope.launch {
+            generating = true
+            genError = null
+            val http = HttpClient(CIO)
+            try {
+                val profile = LlmProfile(store.data.llmBaseUrl.trimEnd('/'), store.data.llmModel, secrets.get("llm.apikey"))
+                val result = LlmClient(http).generateTask(aiText, profile, store.data.llmPromptTemplate)
+                summary = result.summary
+                description = result.description
+            } catch (e: Exception) {
+                genError = e.message
+            } finally {
+                generating = false
+                http.close()
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         try {
@@ -158,7 +186,7 @@ fun CreateIssueScreen(
                         StrikeId("create"),
                         CapabilityId("jira.create-issue"),
                         DangerLevel.CONFIRM,
-                        input = mapOf("project" to project, "summary" to summary, "issueType" to issueType),
+                        input = mapOf("project" to project, "summary" to summary, "issueType" to issueType, "description" to description),
                     )
                     executor.run(strike, Stock.EMPTY) to base
                 }
@@ -186,7 +214,7 @@ fun CreateIssueScreen(
                 Text("Create Jira Story", color = forgeColors.ink, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
             }
             Spacer(Modifier.height(18.dp))
-            Column(modifier = Modifier.width(560.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(modifier = Modifier.width(560.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 when {
                     projects != null -> SearchPicker("Проект", projects!!.map { it.key to "${it.key} — ${it.name}" }, project) { project = it }
                     loadError != null -> {
@@ -201,14 +229,29 @@ fun CreateIssueScreen(
                     else -> OutlinedTextField(issueType, { issueType = it }, label = { Text("Тип задачи") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 }
 
+                OutlinedTextField(
+                    aiText,
+                    { aiText = it },
+                    label = { Text("Черновик — опишите задачу своими словами") },
+                    minLines = 3,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    PrimaryButton(if (generating) "Формулирую…" else "✨ Сформулировать", enabled = !generating && aiText.isNotBlank()) { generate() }
+                    if (genError != null) {
+                        Spacer(Modifier.width(12.dp))
+                        Text(genError!!, color = forgeColors.crit, fontSize = 12.sp)
+                    }
+                }
+
                 OutlinedTextField(summary, { summary = it }, label = { Text("Заголовок") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(description, { description = it }, label = { Text("Описание") }, minLines = 3, modifier = Modifier.fillMaxWidth())
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     PrimaryButton(if (status == CreateStatus.Running) "Создаётся…" else "Создать", enabled = status != CreateStatus.Running) { submit() }
                     Spacer(Modifier.width(14.dp))
                     StatusLine(status)
                 }
-                Text("AI-формулировка по описанию — следующий шаг (агент/LLM).", color = forgeColors.inkFaint, fontSize = 11.sp)
             }
         }
         gate.pending?.let { request ->

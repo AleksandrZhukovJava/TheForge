@@ -40,7 +40,11 @@ import androidx.compose.ui.unit.sp
 import com.forge.sdk.secret.SecretStore
 import com.forge.workshop.data.AppDataStore
 import com.forge.workshop.data.TaskBlock
+import com.forge.workshop.llm.LlmClient
+import com.forge.workshop.llm.LlmProfile
 import com.forge.workshop.theme.forgeColors
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
 import kotlinx.coroutines.launch
 
 private data class Field(val label: String, val key: String, val secret: Boolean = false)
@@ -68,6 +72,8 @@ fun IntegrationsScreen(
         RefreshCard(refreshMinutes, onIntervalChange)
         Spacer(Modifier.height(12.dp))
         BlocksCard(store)
+        Spacer(Modifier.height(12.dp))
+        AiCard(secrets, store)
         Spacer(Modifier.height(12.dp))
 
         IntegrationCard(
@@ -163,6 +169,57 @@ private fun BlocksCard(store: AppDataStore) {
         store.data.blocks.forEach { block ->
             BlockRow(block, store)
             Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+@Composable
+private fun AiCard(secrets: SecretStore, store: AppDataStore) {
+    val scope = rememberCoroutineScope()
+    var baseUrl by remember { mutableStateOf(store.data.llmBaseUrl) }
+    var model by remember { mutableStateOf(store.data.llmModel) }
+    var apiKey by remember { mutableStateOf("") }
+    var test by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) { apiKey = secrets.get("llm.apikey").orEmpty() }
+
+    Column(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(forgeColors.surface2)
+            .border(1.dp, forgeColors.border, RoundedCornerShape(12.dp)).padding(18.dp),
+    ) {
+        Text("ИИ-помощник", color = forgeColors.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(4.dp))
+        Text("Локальный/OpenAI-совместимый LLM для «Сформулировать» при создании задач.", color = forgeColors.inkFaint, fontSize = 12.sp)
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(baseUrl, { baseUrl = it; store.setLlmBaseUrl(it) }, label = { Text("Endpoint (…/v1)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(model, { model = it; store.setLlmModel(it) }, label = { Text("Модель (пусто = авто)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(apiKey, { apiKey = it; scope.launch { secrets.put("llm.apikey", it) } }, label = { Text("API key (необязательно)") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SaveButton("Проверить") {
+                scope.launch {
+                    test = "проверка…"
+                    val http = HttpClient(CIO)
+                    test = try {
+                        LlmClient(http).test(LlmProfile(baseUrl.trimEnd('/'), model, apiKey.ifBlank { null }))
+                        "ок ✓"
+                    } catch (e: Exception) {
+                        e.message ?: "ошибка"
+                    } finally {
+                        http.close()
+                    }
+                }
+            }
+            if (test != null) {
+                Spacer(Modifier.width(12.dp))
+                val col = when (test) {
+                    "проверка…" -> forgeColors.inkMuted
+                    "ок ✓" -> forgeColors.good
+                    else -> forgeColors.crit
+                }
+                Text(test!!, color = col, fontSize = 12.sp)
+            }
         }
     }
 }
@@ -292,7 +349,7 @@ private fun ConfiguredPill(configured: Boolean) {
 }
 
 @Composable
-private fun SaveButton(onClick: () -> Unit) {
+private fun SaveButton(text: String = "Сохранить", onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(9.dp))
@@ -300,6 +357,6 @@ private fun SaveButton(onClick: () -> Unit) {
             .clickable { onClick() }
             .padding(horizontal = 16.dp, vertical = 9.dp),
     ) {
-        Text("Сохранить", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text(text, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
     }
 }

@@ -55,7 +55,18 @@ data class AppData(
     val blocks: List<TaskBlock> = defaultBlocks(),
     /** Default Jira project key for the create form, e.g. "OPS". */
     val jiraProjectKey: String = "",
+    /** Local/OpenAI-compatible LLM endpoint (…/v1). */
+    val llmBaseUrl: String = "http://localhost:1234/v1",
+    /** Model id; blank = auto-pick the first the server reports. */
+    val llmModel: String = "",
+    /** Description format the model must follow. */
+    val llmPromptTemplate: String = DEFAULT_PROMPT_TEMPLATE,
 )
+
+const val DEFAULT_PROMPT_TEMPLATE: String =
+    "Описание:\n<что нужно сделать и зачем>\n\n" +
+        "Критерии приёмки:\n- <критерий>\n\n" +
+        "Дополнительно:\n<контекст, ссылки>"
 
 /** Literal status assigned to local tasks so they fall into the matching block. */
 const val LOCAL_STATUS = "Своя задача"
@@ -149,4 +160,8 @@ class AppDataStore(private val file: Path) {
     fun resetBlocks() = update { it.copy(blocks = defaultBlocks()) }
 
     fun setJiraProjectKey(key: String) = update { it.copy(jiraProjectKey = key.trim()) }
+
+    fun setLlmBaseUrl(url: String) = update { it.copy(llmBaseUrl = url.trim()) }
+    fun setLlmModel(model: String) = update { it.copy(llmModel = model.trim()) }
+    fun setLlmPromptTemplate(template: String) = update { it.copy(llmPromptTemplate = template) }
 }

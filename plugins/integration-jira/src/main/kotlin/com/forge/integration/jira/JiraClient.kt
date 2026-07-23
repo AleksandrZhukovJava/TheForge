@@ -33,6 +33,7 @@ data class JiraConfig(val baseUrl: String)
     val project: ProjectRef,
     val summary: String,
     @SerialName("issuetype") val issueType: IssueTypeRef,
+    val description: String? = null,
 )
 @Serializable private data class ProjectRef(val key: String)
 @Serializable private data class IssueTypeRef(val name: String)
@@ -150,9 +151,9 @@ class JiraClient(
         throw last ?: IllegalStateException("Jira issue types failed")
     }
 
-    suspend fun createIssue(project: String, summary: String, issueType: String = "Task"): JiraIssueRef {
+    suspend fun createIssue(project: String, summary: String, issueType: String = "Task", description: String? = null): JiraIssueRef {
         val payload = json.encodeToString(
-            CreateIssueRequest(CreateIssueFields(ProjectRef(project), summary, IssueTypeRef(issueType))),
+            CreateIssueRequest(CreateIssueFields(ProjectRef(project), summary, IssueTypeRef(issueType), description?.ifBlank { null })),
         )
         // Try Cloud v3, then Server/DC v2. A failing attempt did not create anything (bad endpoint
         // or auth), so retrying the other version is safe.
