@@ -61,6 +61,8 @@ data class AppData(
     val llmModel: String = "",
     /** Description format the model must follow. */
     val llmPromptTemplate: String = DEFAULT_PROMPT_TEMPLATE,
+    /** Create-form field ids the user pinned to always show (beyond required ones). */
+    val pinnedCreateFields: Set<String> = emptySet(),
 )
 
 const val DEFAULT_PROMPT_TEMPLATE: String =
@@ -164,4 +166,8 @@ class AppDataStore(private val file: Path) {
     fun setLlmBaseUrl(url: String) = update { it.copy(llmBaseUrl = url.trim()) }
     fun setLlmModel(model: String) = update { it.copy(llmModel = model.trim()) }
     fun setLlmPromptTemplate(template: String) = update { it.copy(llmPromptTemplate = template) }
+
+    fun togglePinnedField(id: String) = update { d ->
+        d.copy(pinnedCreateFields = if (id in d.pinnedCreateFields) d.pinnedCreateFields - id else d.pinnedCreateFields + id)
+    }
 }

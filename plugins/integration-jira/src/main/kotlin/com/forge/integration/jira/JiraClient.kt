@@ -14,6 +14,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -33,6 +34,24 @@ data class JiraConfig(val baseUrl: String)
 @Serializable data class JiraProject(val key: String, val name: String = "")
 @Serializable data class JiraIssueType(val id: String = "", val name: String)
 @Serializable private data class CreateMetaTypes(val values: List<JiraIssueType> = emptyList(), val issueTypes: List<JiraIssueType> = emptyList())
+
+enum class FieldControl { TEXT, TEXTAREA, NUMBER, DATE, SELECT, MULTISELECT, LABELS }
+data class FieldOption(val id: String, val label: String)
+data class CreateField(val id: String, val name: String, val required: Boolean, val control: FieldControl, val options: List<FieldOption> = emptyList())
+
+@Serializable private data class RawSchema(val type: String? = null, val custom: String? = null, val items: String? = null)
+@Serializable private data class RawAllowed(val id: String? = null, val value: String? = null, val name: String? = null)
+@Serializable private data class RawFieldMeta(
+    val fieldId: String? = null,
+    val key: String? = null,
+    val name: String = "",
+    val required: Boolean = false,
+    val schema: RawSchema? = null,
+    val allowedValues: List<RawAllowed> = emptyList(),
+)
+@Serializable private data class CreateMetaFields(val values: List<RawFieldMeta> = emptyList(), val fields: List<RawFieldMeta> = emptyList())
+
+private val EXCLUDED_FIELDS = setOf("summary", "description", "project", "issuetype", "reporter", "assignee", "attachment", "issuelinks")
 
 
 /** Minimal Jira Cloud REST client (read + create). Deterministic Tool territory — no LLM. */
@@ -148,7 +167,46 @@ class JiraClient(
         throw last ?: IllegalStateException("Jira issue types failed")
     }
 
-    suspend fun createIssue(project: String, summary: String, issueType: String = "Task", description: String? = null): JiraIssueRef {
+    /** Fillable fields for creating an issue of the given type (createmeta), with allowed values. */
+    suspend fun getCreateFields(projectKey: String, issueTypeId: String): List<CreateField> {
+        var last: Exception? = null
+        for (version in intArrayOf(3, 2)) {
+            try {
+                val body = http.get("${config.baseUrl}/rest/api/$version/issue/createmeta/$projectKey/issuetypes/$issueTypeId") {
+                    header(HttpHeaders.Authorization, authHeader)
+                    header(HttpHeaders.Accept, "application/json")
+                }.readJson()
+                val meta = json.decodeFromString<CreateMetaFields>(body)
+                return meta.values.ifEmpty { meta.fields }.mapNotNull { toCreateField(it) }
+                    .sortedWith(compareByDescending<CreateField> { it.required }.thenBy { it.name })
+            } catch (e: Exception) {
+                last = e
+            }
+        }
+        throw last ?: IllegalStateException("Jira fields failed")
+    }
+
+    private fun toCreateField(m: RawFieldMeta): CreateField? {
+        val id = (m.fieldId ?: m.key)?.takeIf { it.isNotBlank() } ?: return null
+        if (id in EXCLUDED_FIELDS) return null
+        val options = m.allowedValues.mapNotNull { v ->
+            val oid = v.id?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val label = (v.value ?: v.name ?: v.id)?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            FieldOption(oid, label)
+        }
+        val t = m.schema?.type
+        return when {
+            (t == "option" || t == "priority") && options.isNotEmpty() -> CreateField(id, m.name, m.required, FieldControl.SELECT, options)
+            t == "array" && m.schema?.items == "option" && options.isNotEmpty() -> CreateField(id, m.name, m.required, FieldControl.MULTISELECT, options)
+            t == "array" && m.schema?.items == "string" -> CreateField(id, m.name, m.required, FieldControl.LABELS)
+            t == "string" -> CreateField(id, m.name, m.required, if (m.schema?.custom?.contains("textarea") == true) FieldControl.TEXTAREA else FieldControl.TEXT)
+            t == "number" -> CreateField(id, m.name, m.required, FieldControl.NUMBER)
+            t == "date" -> CreateField(id, m.name, m.required, FieldControl.DATE)
+            else -> null
+        }
+    }
+
+    suspend fun createIssue(project: String, summary: String, issueType: String = "Task", description: String? = null, extraFields: Map<String, JsonElement>? = null): JiraIssueRef {
         // Try Cloud v3 (description = ADF), then Server/DC v2 (description = plain text). A failing
         // attempt created nothing (bad endpoint/auth/shape), so retrying the other version is safe.
         var last: Exception? = null
@@ -156,6 +214,8 @@ class JiraClient(
             try {
                 val payload = buildJsonObject {
                     putJsonObject("fields") {
+                        // extras first — core fields below win on collision
+                        extraFields?.forEach { (k, v) -> put(k, v) }
                         putJsonObject("project") { put("key", project) }
                         put("summary", summary)
                         putJsonObject("issuetype") { put("name", issueType) }

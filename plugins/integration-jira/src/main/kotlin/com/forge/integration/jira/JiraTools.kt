@@ -48,6 +48,8 @@ class CreateJiraIssueTool(
         val summary = strike.input["summary"] as? String ?: error("missing input 'summary'")
         val issueType = strike.input["issueType"] as? String ?: "Task"
         val description = strike.input["description"] as? String
-        return StrikeResult(strike.id, output = client.createIssue(project, summary, issueType, description))
+        @Suppress("UNCHECKED_CAST")
+        val extraFields = strike.input["extraFields"] as? Map<String, kotlinx.serialization.json.JsonElement>
+        return StrikeResult(strike.id, output = client.createIssue(project, summary, issueType, description, extraFields))
     }
 }

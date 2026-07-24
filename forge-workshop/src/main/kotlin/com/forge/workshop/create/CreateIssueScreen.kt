@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -23,14 +25,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,7 +46,9 @@ import com.forge.brain.policy.DefaultPolicy
 import com.forge.brain.policy.PolicyEngine
 import com.forge.brain.resolve.DefaultCapabilityRegistry
 import com.forge.brain.resolve.StrikeResolver
+import com.forge.integration.jira.CreateField
 import com.forge.integration.jira.CreateJiraIssueTool
+import com.forge.integration.jira.FieldControl
 import com.forge.integration.jira.JiraAuth
 import com.forge.integration.jira.JiraClient
 import com.forge.integration.jira.JiraConfig
@@ -64,6 +71,12 @@ import com.forge.workshop.theme.forgeColors
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 private sealed interface CreateStatus {
     data object Idle : CreateStatus
@@ -129,6 +142,25 @@ fun CreateIssueScreen(
     var status by remember { mutableStateOf<CreateStatus>(CreateStatus.Idle) }
     val gate = remember { UiMasterGate() }
     val scope = rememberCoroutineScope()
+    var fields by remember { mutableStateOf<List<CreateField>?>(null) }
+    val fieldValues = remember { mutableStateMapOf<String, String>() }
+    val multiValues = remember { mutableStateMapOf<String, Set<String>>() }
+    var extraOpen by remember { mutableStateOf(false) }
+    val typeId = types?.firstOrNull { it.name == issueType }?.id
+
+    fun buildExtra(): Map<String, JsonElement> {
+        val out = mutableMapOf<String, JsonElement>()
+        fields?.forEach { f ->
+            when (f.control) {
+                FieldControl.SELECT -> fieldValues[f.id]?.takeIf { it.isNotBlank() }?.let { out[f.id] = buildJsonObject { put("id", it) } }
+                FieldControl.MULTISELECT -> multiValues[f.id]?.takeIf { it.isNotEmpty() }?.let { ids -> out[f.id] = buildJsonArray { ids.forEach { add(buildJsonObject { put("id", it) }) } } }
+                FieldControl.LABELS -> fieldValues[f.id]?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }?.takeIf { it.isNotEmpty() }?.let { labels -> out[f.id] = buildJsonArray { labels.forEach { add(it) } } }
+                FieldControl.NUMBER -> fieldValues[f.id]?.toDoubleOrNull()?.let { out[f.id] = JsonPrimitive(it) }
+                else -> fieldValues[f.id]?.takeIf { it.isNotBlank() }?.let { out[f.id] = JsonPrimitive(it) }
+            }
+        }
+        return out
+    }
 
     fun generate() {
         if (aiText.isBlank()) return
@@ -191,6 +223,17 @@ fun CreateIssueScreen(
             }
         }
     }
+    LaunchedEffect(project, typeId) {
+        fields = if (project.isNotBlank() && !typeId.isNullOrBlank()) {
+            try {
+                withJira(secrets) { c, _ -> c.getCreateFields(project, typeId) }
+            } catch (e: Exception) {
+                null
+            }
+        } else {
+            null
+        }
+    }
 
     fun submit() {
         if (project.isBlank() || summary.isBlank()) {
@@ -209,7 +252,7 @@ fun CreateIssueScreen(
                         StrikeId("create"),
                         CapabilityId("jira.create-issue"),
                         DangerLevel.CONFIRM,
-                        input = mapOf("project" to project, "summary" to summary, "issueType" to issueType, "description" to description),
+                        input = mapOf("project" to project, "summary" to summary, "issueType" to issueType, "description" to description, "extraFields" to buildExtra()),
                     )
                     executor.run(strike, Stock.EMPTY) to base
                 }
@@ -283,6 +326,23 @@ fun CreateIssueScreen(
                     }
                 }
 
+                fields?.let { fs ->
+                    val pinned = store.data.pinnedCreateFields
+                    val shown = fs.filter { it.required || it.id in pinned }
+                    val extra = fs.filterNot { it.required || it.id in pinned }
+                    shown.forEach { FieldEditor(it, store, fieldValues, multiValues) }
+                    if (extra.isNotEmpty()) {
+                        Text(
+                            "Дополнительные поля · ${extra.size}   ${if (extraOpen) "▲" else "▼"}",
+                            color = forgeColors.inkMuted,
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { extraOpen = !extraOpen }.padding(vertical = 6.dp),
+                        )
+                        if (extraOpen) extra.forEach { FieldEditor(it, store, fieldValues, multiValues) }
+                    }
+                }
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     PrimaryButton(if (status == CreateStatus.Running) "Создаётся…" else "Создать", enabled = status != CreateStatus.Running) { submit() }
                     Spacer(Modifier.width(14.dp))
@@ -333,6 +393,61 @@ private fun LoadingField(label: String, text: String) {
         Text(label, color = forgeColors.inkFaint, fontSize = 11.sp)
         Spacer(Modifier.height(2.dp))
         Text(text, color = forgeColors.inkMuted, fontSize = 14.sp)
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FieldEditor(
+    field: CreateField,
+    store: AppDataStore,
+    values: SnapshotStateMap<String, String>,
+    multi: SnapshotStateMap<String, Set<String>>,
+) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(field.name + if (field.required) " *" else "", color = forgeColors.ink, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.weight(1f))
+            if (!field.required) {
+                val pinned = field.id in store.data.pinnedCreateFields
+                Text(
+                    if (pinned) "открепить" else "закрепить",
+                    color = if (pinned) forgeColors.ember else forgeColors.inkFaint,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { store.togglePinnedField(field.id) }.padding(horizontal = 6.dp, vertical = 3.dp),
+                )
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        when (field.control) {
+            FieldControl.SELECT -> SearchPicker("", field.options.map { it.id to it.label }, values[field.id] ?: "") { values[field.id] = it }
+            FieldControl.MULTISELECT -> FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                field.options.forEach { opt ->
+                    val selected = (multi[field.id] ?: emptySet()).contains(opt.id)
+                    OptionChip(opt.label, selected) {
+                        val cur = multi[field.id] ?: emptySet()
+                        multi[field.id] = if (selected) cur - opt.id else cur + opt.id
+                    }
+                }
+            }
+            FieldControl.LABELS -> OutlinedTextField(values[field.id] ?: "", { values[field.id] = it }, label = { Text("значения через запятую") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            FieldControl.TEXTAREA -> OutlinedTextField(values[field.id] ?: "", { values[field.id] = it }, minLines = 2, modifier = Modifier.fillMaxWidth())
+            else -> OutlinedTextField(values[field.id] ?: "", { values[field.id] = it }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        }
+    }
+}
+
+@Composable
+private fun OptionChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .then(if (selected) Modifier.background(forgeColors.ember) else Modifier.border(1.dp, forgeColors.borderStrong, RoundedCornerShape(8.dp)))
+            .clickable { onClick() }
+            .padding(horizontal = 11.dp, vertical = 6.dp),
+    ) {
+        Text(label, color = if (selected) Color.White else forgeColors.inkMuted, fontSize = 12.sp)
     }
 }
 
