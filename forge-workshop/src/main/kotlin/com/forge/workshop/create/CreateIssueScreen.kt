@@ -57,6 +57,7 @@ import com.forge.sdk.secret.SecretStore
 import com.forge.workshop.data.AppDataStore
 import com.forge.workshop.llm.LlmClient
 import com.forge.workshop.llm.LlmProfile
+import com.forge.workshop.llm.LlmResult
 import com.forge.workshop.runner.ConfirmModal
 import com.forge.workshop.runner.UiMasterGate
 import com.forge.workshop.theme.forgeColors
@@ -122,6 +123,7 @@ fun CreateIssueScreen(
     var summary by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var aiText by remember { mutableStateOf("") }
+    var refineText by remember { mutableStateOf("") }
     var generating by remember { mutableStateOf(false) }
     var genError by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<CreateStatus>(CreateStatus.Idle) }
@@ -139,6 +141,27 @@ fun CreateIssueScreen(
                 val result = LlmClient(http).generateTask(aiText, profile, store.data.llmPromptTemplate)
                 summary = result.summary
                 description = result.description
+            } catch (e: Exception) {
+                genError = e.message
+            } finally {
+                generating = false
+                http.close()
+            }
+        }
+    }
+
+    fun refine() {
+        if (refineText.isBlank() || (summary.isBlank() && description.isBlank())) return
+        scope.launch {
+            generating = true
+            genError = null
+            val http = HttpClient(CIO)
+            try {
+                val profile = LlmProfile(store.data.llmBaseUrl.trimEnd('/'), store.data.llmModel, secrets.get("llm.apikey"))
+                val result = LlmClient(http).refineTask(refineText, LlmResult(summary, description), profile, store.data.llmPromptTemplate)
+                summary = result.summary
+                description = result.description
+                refineText = ""
             } catch (e: Exception) {
                 genError = e.message
             } finally {
@@ -246,6 +269,19 @@ fun CreateIssueScreen(
 
                 OutlinedTextField(summary, { summary = it }, label = { Text("Заголовок") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(description, { description = it }, label = { Text("Описание") }, minLines = 3, modifier = Modifier.fillMaxWidth())
+
+                if (summary.isNotBlank() || description.isNotBlank()) {
+                    OutlinedTextField(
+                        refineText,
+                        { refineText = it },
+                        label = { Text("Уточнение — что поправить (напр. «добавь критерии приёмки»)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Row {
+                        PrimaryButton(if (generating) "…" else "Уточнить", enabled = !generating && refineText.isNotBlank()) { refine() }
+                    }
+                }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     PrimaryButton(if (status == CreateStatus.Running) "Создаётся…" else "Создать", enabled = status != CreateStatus.Running) { submit() }

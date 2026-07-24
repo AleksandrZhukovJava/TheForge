@@ -14,6 +14,12 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.addJsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import java.util.Base64
 
 data class JiraConfig(val baseUrl: String)
@@ -28,15 +34,6 @@ data class JiraConfig(val baseUrl: String)
 @Serializable data class JiraIssueType(val id: String = "", val name: String)
 @Serializable private data class CreateMetaTypes(val values: List<JiraIssueType> = emptyList(), val issueTypes: List<JiraIssueType> = emptyList())
 
-@Serializable private data class CreateIssueRequest(val fields: CreateIssueFields)
-@Serializable private data class CreateIssueFields(
-    val project: ProjectRef,
-    val summary: String,
-    @SerialName("issuetype") val issueType: IssueTypeRef,
-    val description: String? = null,
-)
-@Serializable private data class ProjectRef(val key: String)
-@Serializable private data class IssueTypeRef(val name: String)
 
 /** Minimal Jira Cloud REST client (read + create). Deterministic Tool territory — no LLM. */
 class JiraClient(
@@ -152,14 +149,21 @@ class JiraClient(
     }
 
     suspend fun createIssue(project: String, summary: String, issueType: String = "Task", description: String? = null): JiraIssueRef {
-        val payload = json.encodeToString(
-            CreateIssueRequest(CreateIssueFields(ProjectRef(project), summary, IssueTypeRef(issueType), description?.ifBlank { null })),
-        )
-        // Try Cloud v3, then Server/DC v2. A failing attempt did not create anything (bad endpoint
-        // or auth), so retrying the other version is safe.
+        // Try Cloud v3 (description = ADF), then Server/DC v2 (description = plain text). A failing
+        // attempt created nothing (bad endpoint/auth/shape), so retrying the other version is safe.
         var last: Exception? = null
         for (version in intArrayOf(3, 2)) {
             try {
+                val payload = buildJsonObject {
+                    putJsonObject("fields") {
+                        putJsonObject("project") { put("key", project) }
+                        put("summary", summary)
+                        putJsonObject("issuetype") { put("name", issueType) }
+                        if (!description.isNullOrBlank()) {
+                            if (version == 3) put("description", textToAdf(description)) else put("description", description)
+                        }
+                    }
+                }.toString()
                 val body = http.post("${config.baseUrl}/rest/api/$version/issue") {
                     header(HttpHeaders.Authorization, authHeader)
                     header(HttpHeaders.Accept, "application/json")
@@ -172,6 +176,27 @@ class JiraClient(
             }
         }
         throw last ?: IllegalStateException("Jira create failed")
+    }
+
+    /** Plain text → Atlassian Document Format (required for Cloud v3 description). */
+    private fun textToAdf(text: String): JsonObject = buildJsonObject {
+        put("type", "doc")
+        put("version", 1)
+        putJsonArray("content") {
+            text.split("\n").forEach { line ->
+                addJsonObject {
+                    put("type", "paragraph")
+                    if (line.isNotEmpty()) {
+                        putJsonArray("content") {
+                            addJsonObject {
+                                put("type", "text")
+                                put("text", line)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

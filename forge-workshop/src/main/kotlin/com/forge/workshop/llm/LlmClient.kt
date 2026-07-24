@@ -50,6 +50,28 @@ class LlmClient(private val http: HttpClient) {
         return parse(raw)
     }
 
+    /** Apply a follow-up instruction to the current draft, changing only what's asked. */
+    suspend fun refineTask(instruction: String, current: LlmResult, profile: LlmProfile, promptTemplate: String): LlmResult {
+        val system = listOf(
+            "Ты редактируешь черновик задачи для Jira на русском языке.",
+            "Тебе дают текущий заголовок (summary), описание (description) и указание, что изменить.",
+            "Внеси ТОЛЬКО запрошенное изменение; всё остальное сохрани без изменений, дословно.",
+            "Верни СТРОГО JSON без пояснений, без markdown:",
+            "{\"summary\": \"<заголовок>\", \"description\": \"<описание целиком, с внесённой правкой>\"}",
+            "Переводы строк внутри значений экранируй как \\n.",
+            "Эталонная структура описания (для ориентира, не перестраивай без запроса):",
+            promptTemplate,
+        ).joinToString("\n\n")
+        val userMsg = listOf(
+            "Текущий заголовок: ${current.summary.ifBlank { "(пусто)" }}",
+            "Текущее описание:\n${current.description.ifBlank { "(пусто)" }}",
+            "Что изменить: $instruction",
+        ).joinToString("\n\n")
+        val raw = chat(listOf(ChatMessage("system", system), ChatMessage("user", userMsg)), profile)
+        val parsed = parse(raw)
+        return if (parsed.summary.isBlank() && parsed.description.isBlank()) current else parsed
+    }
+
     /** Cheap connectivity check for the settings "Проверить" button. */
     suspend fun test(profile: LlmProfile): String {
         chat(listOf(ChatMessage("user", "Ответь одним словом: ок")), profile)
