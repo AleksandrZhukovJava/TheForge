@@ -40,6 +40,20 @@ fun defaultBlocks(): List<TaskBlock> = listOf(
     TaskBlock("local", "Свои", listOf("Своя задача")),
 )
 
+enum class NType { NEW, STATUS }
+
+/** A detected task event, shown in Sparks. */
+@Serializable
+data class NotificationEvent(
+    val id: String,
+    val type: NType,
+    val issueKey: String,
+    val summary: String,
+    val text: String,
+    val at: Long,
+    val read: Boolean = false,
+)
+
 @Serializable
 data class AppData(
     val localTasks: List<LocalTask> = emptyList(),
@@ -63,6 +77,10 @@ data class AppData(
     val llmPromptTemplate: String = DEFAULT_PROMPT_TEMPLATE,
     /** Create-form field ids the user pinned to always show (beyond required ones). */
     val pinnedCreateFields: Set<String> = emptySet(),
+    /** Sparks feed. */
+    val notifications: List<NotificationEvent> = emptyList(),
+    /** Last-seen issue key → status, for detecting new/changed on the next poll. */
+    val issueSnapshot: Map<String, String> = emptyMap(),
 )
 
 const val DEFAULT_PROMPT_TEMPLATE: String =
@@ -170,4 +188,12 @@ class AppDataStore(private val file: Path) {
     fun togglePinnedField(id: String) = update { d ->
         d.copy(pinnedCreateFields = if (id in d.pinnedCreateFields) d.pinnedCreateFields - id else d.pinnedCreateFields + id)
     }
+
+    fun recordNotifications(newEvents: List<NotificationEvent>, snapshot: Map<String, String>) = update { d ->
+        d.copy(notifications = (newEvents + d.notifications).take(100), issueSnapshot = snapshot)
+    }
+
+    fun markNotificationsRead() = update { d -> d.copy(notifications = d.notifications.map { it.copy(read = true) }) }
+
+    fun unreadCount(): Int = data.notifications.count { !it.read }
 }

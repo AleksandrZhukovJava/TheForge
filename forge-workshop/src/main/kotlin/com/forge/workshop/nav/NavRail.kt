@@ -25,6 +25,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
@@ -35,12 +36,13 @@ import com.forge.workshop.theme.forgeColors
 enum class NavItem(val label: String) {
     BENCH("Bench"),
     FOUNDRY("Foundry"),
+    SPARKS("Sparks"),
     HISTORY("History"),
     INTEGRATIONS("Integrations"),
 }
 
 @Composable
-fun NavRail(selected: NavItem, onSelect: (NavItem) -> Unit) {
+fun NavRail(selected: NavItem, onSelect: (NavItem) -> Unit, unread: Int = 0) {
     Column(
         modifier = Modifier
             .width(210.dp)
@@ -59,7 +61,7 @@ fun NavRail(selected: NavItem, onSelect: (NavItem) -> Unit) {
         }
         Spacer(Modifier.height(6.dp))
         NavItem.entries.forEach { item ->
-            NavRow(item, item == selected) { onSelect(item) }
+            NavRow(item, item == selected, if (item == NavItem.SPARKS) unread else 0) { onSelect(item) }
         }
         Spacer(Modifier.weight(1f))
         Row(
@@ -74,7 +76,7 @@ fun NavRail(selected: NavItem, onSelect: (NavItem) -> Unit) {
 }
 
 @Composable
-private fun NavRow(item: NavItem, active: Boolean, onClick: () -> Unit) {
+private fun NavRow(item: NavItem, active: Boolean, badge: Int, onClick: () -> Unit) {
     val fg = if (active) forgeColors.ember else forgeColors.inkMuted
     val bg = if (active) forgeColors.ember.copy(alpha = 0.12f) else Color.Transparent
     Row(
@@ -93,6 +95,29 @@ private fun NavRow(item: NavItem, active: Boolean, onClick: () -> Unit) {
             color = fg,
             fontSize = 14.sp,
             fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+        )
+        if (badge > 0) {
+            Spacer(Modifier.weight(1f))
+            UnreadBadge(badge)
+        }
+    }
+}
+
+/** Ember pill with the unread Sparks count. */
+@Composable
+private fun UnreadBadge(count: Int) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(9.dp))
+            .background(forgeColors.ember)
+            .padding(horizontal = 6.dp, vertical = 1.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            if (count > 99) "99+" else count.toString(),
+            color = forgeColors.ground,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
         )
     }
 }
@@ -147,6 +172,24 @@ private fun NavIcon(item: NavItem, tint: Color) {
                 val rr = CornerRadius(s * 0.13f)
                 drawRoundRect(tint, topLeft = Offset(s * 0.09f, s * 0.3f), size = Size(s * 0.46f, s * 0.4f), cornerRadius = rr, style = st)
                 drawRoundRect(tint, topLeft = Offset(s * 0.45f, s * 0.3f), size = Size(s * 0.46f, s * 0.4f), cornerRadius = rr, style = st)
+            }
+            NavItem.SPARKS -> {
+                // a four-point spark (star) struck off the anvil
+                val c = center
+                val long = s * 0.42f
+                val short = s * 0.13f
+                val path = Path().apply {
+                    moveTo(c.x, c.y - long)
+                    lineTo(c.x + short, c.y - short)
+                    lineTo(c.x + long, c.y)
+                    lineTo(c.x + short, c.y + short)
+                    lineTo(c.x, c.y + long)
+                    lineTo(c.x - short, c.y + short)
+                    lineTo(c.x - long, c.y)
+                    lineTo(c.x - short, c.y - short)
+                    close()
+                }
+                drawPath(path, tint)
             }
         }
     }

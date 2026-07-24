@@ -31,6 +31,7 @@ import com.forge.workshop.integrations.IntegrationsScreen
 import com.forge.workshop.nav.NavItem
 import com.forge.workshop.nav.NavRail
 import com.forge.workshop.runner.RunnerScreen
+import com.forge.workshop.sparks.SparksScreen
 import com.forge.workshop.theme.forgeColors
 
 /** Root of the main Workshop window: nav rail + the selected screen (or a running Skill). */
@@ -49,14 +50,15 @@ fun WorkshopApp(
     val history = remember { HistoryStore() }
 
     // Fetch fresh data whenever the Bench is opened (background polling only runs while the
-    // widget/popover is visible).
+    // widget/popover is visible). Opening Sparks clears the unread markers.
     LaunchedEffect(selected) {
         if (selected == NavItem.BENCH) onRefresh()
+        if (selected == NavItem.SPARKS) store.markNotificationsRead()
     }
 
     Surface(color = forgeColors.ground, modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxSize()) {
-            NavRail(selected) { selected = it; running = null }
+            NavRail(selected, onSelect = { selected = it; running = null }, unread = store.unreadCount())
             Box(Modifier.width(1.dp).fillMaxHeight().background(forgeColors.border))
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 val current = running
@@ -74,6 +76,7 @@ fun WorkshopApp(
                     )
                     selected == NavItem.BENCH -> BenchScreen(dashboardState, store, onRefresh)
                     selected == NavItem.FOUNDRY -> FoundryScreen(onRun = { running = it })
+                    selected == NavItem.SPARKS -> SparksScreen(store)
                     selected == NavItem.HISTORY -> HistoryScreen(history)
                     else -> IntegrationsScreen(secrets, refreshMinutes, onIntervalChange, onSaved, store)
                 }

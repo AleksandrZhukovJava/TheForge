@@ -17,8 +17,13 @@ import androidx.compose.ui.window.rememberWindowState
 import com.forge.executors.secret.FileSecretStore
 import com.forge.executors.secret.ForgeDirs
 import com.forge.workshop.data.AppDataStore
+import com.forge.workshop.data.NType
+import com.forge.workshop.data.NotificationEvent
+import com.forge.workshop.dashboard.DashboardData
 import com.forge.workshop.dashboard.DashboardHolder
+import com.forge.workshop.dashboard.DashboardState
 import com.forge.workshop.dashboard.LiveDashboardRepository
+import java.util.UUID
 import com.forge.workshop.theme.ForgeTheme
 import com.forge.workshop.tray.SparkPainter
 import com.forge.workshop.widget.TrayPopover
@@ -37,11 +42,17 @@ fun main() = application {
     var widgetVisible by remember { mutableStateOf(true) }
     var popoverVisible by remember { mutableStateOf(false) }
 
+    // Refresh the dashboard, then diff the Jira issues against the last snapshot to emit Sparks.
+    suspend fun refreshAndDetect() {
+        dashboard.refresh()
+        (dashboard.state as? DashboardState.Loaded)?.let { detectSparks(it.data, appData) }
+    }
+
     // Poll on the chosen interval — but only while a consumer window is visible.
     LaunchedEffect(refreshMinutes, widgetVisible, popoverVisible) {
         if (widgetVisible || popoverVisible) {
             while (true) {
-                dashboard.refresh()
+                refreshAndDetect()
                 delay(refreshMinutes * 60_000L)
             }
         }
@@ -67,9 +78,9 @@ fun main() = application {
                 secrets = secrets,
                 refreshMinutes = refreshMinutes,
                 onIntervalChange = { refreshMinutes = it },
-                onSaved = { scope.launch { dashboard.refresh() } },
+                onSaved = { scope.launch { refreshAndDetect() } },
                 dashboardState = dashboard.state,
-                onRefresh = { scope.launch { dashboard.refresh() } },
+                onRefresh = { scope.launch { refreshAndDetect() } },
                 store = appData,
             )
         }
@@ -94,7 +105,7 @@ fun main() = application {
             ForgeTheme {
                 WidgetPanel(
                     state = dashboard.state,
-                    onRefresh = { scope.launch { dashboard.refresh() } },
+                    onRefresh = { scope.launch { refreshAndDetect() } },
                     onMoveBy = { dx, dy -> awtWindow.setLocation(awtWindow.x + dx, awtWindow.y + dy) },
                 )
             }
@@ -120,9 +131,36 @@ fun main() = application {
                 TrayPopover(
                     state = dashboard.state,
                     onRun = { popoverVisible = false },
-                    onRefresh = { scope.launch { dashboard.refresh() } },
+                    onRefresh = { scope.launch { refreshAndDetect() } },
                 )
             }
         }
     }
+}
+
+/**
+ * Diff the freshly-loaded Jira issues against the last snapshot and persist any Sparks.
+ * NEW — a key we hadn't seen (only after the first non-empty snapshot, to avoid flooding on cold start).
+ * STATUS — the issue's status name changed since last poll.
+ */
+private fun detectSparks(data: DashboardData, store: AppDataStore) {
+    val prev = store.data.issueSnapshot
+    val snapshot = data.jira.associate { it.code to (it.statusName ?: "") }
+    val now = System.currentTimeMillis()
+    val events = buildList {
+        for (row in data.jira) {
+            val key = row.code
+            val status = row.statusName ?: ""
+            val old = prev[key]
+            when {
+                old == null -> if (prev.isNotEmpty()) add(
+                    NotificationEvent(UUID.randomUUID().toString(), NType.NEW, key, row.text, "Новая · $status", now),
+                )
+                old != status -> add(
+                    NotificationEvent(UUID.randomUUID().toString(), NType.STATUS, key, row.text, "$old → $status", now),
+                )
+            }
+        }
+    }
+    if (events.isNotEmpty() || snapshot != prev) store.recordNotifications(events, snapshot)
 }
