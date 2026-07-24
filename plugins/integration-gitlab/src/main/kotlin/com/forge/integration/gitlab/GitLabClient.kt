@@ -27,10 +27,25 @@ data class MergeRequest(
 )
 
 @Serializable
+data class GitLabProject(
+    val id: Int,
+    @SerialName("path_with_namespace") val path: String = "",
+    val name: String = "",
+)
+
+@Serializable
+data class GitLabBranch(
+    val name: String,
+    val default: Boolean = false,
+)
+
+@Serializable
 private data class OpenMrRequest(
     @SerialName("source_branch") val sourceBranch: String,
     @SerialName("target_branch") val targetBranch: String,
     val title: String,
+    val description: String? = null,
+    @SerialName("remove_source_branch") val removeSourceBranch: Boolean = false,
 )
 
 /**
@@ -68,16 +83,53 @@ class GitLabClient(
         return json.decodeFromString(body)
     }
 
+    /** Cheap auth probe (`/user`). Throws if the token is not accepted. */
+    suspend fun ping() {
+        http.get("${config.baseUrl}/api/v4/user") {
+            header("PRIVATE-TOKEN", token)
+            header(HttpHeaders.Accept, "application/json")
+        }.readJson()
+    }
+
+    /** Projects the current user is a member of (for the create-MR picker), most-recently active first. */
+    suspend fun getProjects(perPage: Int = 50): List<GitLabProject> {
+        val body = http.get("${config.baseUrl}/api/v4/projects") {
+            header("PRIVATE-TOKEN", token)
+            header(HttpHeaders.Accept, "application/json")
+            url {
+                parameters.append("membership", "true")
+                parameters.append("order_by", "last_activity_at")
+                parameters.append("simple", "true")
+                parameters.append("per_page", perPage.toString())
+            }
+        }.readJson()
+        return json.decodeFromString<List<GitLabProject>>(body).sortedBy { it.path }
+    }
+
+    /** Branches in a project (source/target pickers). Default branch surfaces first. */
+    suspend fun getBranches(projectId: String, perPage: Int = 100): List<GitLabBranch> {
+        val body = http.get("${config.baseUrl}/api/v4/projects/$projectId/repository/branches") {
+            header("PRIVATE-TOKEN", token)
+            header(HttpHeaders.Accept, "application/json")
+            url { parameters.append("per_page", perPage.toString()) }
+        }.readJson()
+        return json.decodeFromString<List<GitLabBranch>>(body)
+            .sortedWith(compareByDescending<GitLabBranch> { it.default }.thenBy { it.name })
+    }
+
     suspend fun openMergeRequest(
         projectId: String,
         sourceBranch: String,
         targetBranch: String,
         title: String,
+        description: String? = null,
+        removeSourceBranch: Boolean = false,
     ): MergeRequest {
         val body = http.post("${config.baseUrl}/api/v4/projects/$projectId/merge_requests") {
             header("PRIVATE-TOKEN", token)
+            header(HttpHeaders.Accept, "application/json")
             header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
-            setBody(json.encodeToString(OpenMrRequest(sourceBranch, targetBranch, title)))
+            setBody(json.encodeToString(OpenMrRequest(sourceBranch, targetBranch, title, description?.takeIf { it.isNotBlank() }, removeSourceBranch)))
         }.readJson()
         return json.decodeFromString(body)
     }

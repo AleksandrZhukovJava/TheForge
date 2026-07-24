@@ -58,6 +58,8 @@ class OpenMergeRequestTool(
         val source = strike.input["sourceBranch"] as? String ?: error("missing input 'sourceBranch'")
         val target = strike.input["targetBranch"] as? String ?: error("missing input 'targetBranch'")
         val title = strike.input["title"] as? String ?: error("missing input 'title'")
-        return StrikeResult(strike.id, output = client.openMergeRequest(projectId, source, target, title))
+        val description = strike.input["description"] as? String
+        val removeSource = strike.input["removeSourceBranch"] as? Boolean ?: false
+        return StrikeResult(strike.id, output = client.openMergeRequest(projectId, source, target, title, description, removeSource))
     }
 }
