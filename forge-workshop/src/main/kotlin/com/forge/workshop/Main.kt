@@ -82,6 +82,7 @@ fun main() = application {
                 dashboardState = dashboard.state,
                 onRefresh = { scope.launch { refreshAndDetect() } },
                 store = appData,
+                onQuit = ::exitApplication,
             )
         }
     }

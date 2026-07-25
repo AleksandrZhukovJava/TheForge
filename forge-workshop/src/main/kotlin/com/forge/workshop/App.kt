@@ -1,11 +1,17 @@
 package com.forge.workshop
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -13,9 +19,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.forge.executors.secret.ForgeDirs
@@ -43,6 +53,9 @@ import com.forge.workshop.skills.SkillStore
 import com.forge.workshop.skills.SkillsScreen
 import com.forge.workshop.sparks.SparksScreen
 import com.forge.workshop.theme.forgeColors
+import com.forge.workshop.updater.UpdateInfo
+import com.forge.workshop.updater.Updater
+import kotlinx.coroutines.launch
 
 /** Root of the main Workshop window: nav rail + the selected screen (or a running Skill). */
 @Composable
@@ -54,7 +67,12 @@ fun WorkshopApp(
     dashboardState: DashboardState,
     onRefresh: () -> Unit,
     store: AppDataStore,
+    onQuit: () -> Unit = {},
 ) {
+    val updateScope = rememberCoroutineScope()
+    var update by remember { mutableStateOf<UpdateInfo?>(null) }
+    var updateStatus by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) { update = Updater.checkForUpdate() }
     var selected by remember { mutableStateOf(NavItem.BENCH) }
     var running by remember { mutableStateOf<SkillSpec?>(null) }
     var builderOpen by remember { mutableStateOf(false) }
@@ -73,7 +91,28 @@ fun WorkshopApp(
     }
 
     Surface(color = forgeColors.ground, modifier = Modifier.fillMaxSize()) {
-        Row(modifier = Modifier.fillMaxSize()) {
+      Column(Modifier.fillMaxSize()) {
+        update?.let { info ->
+            UpdateBar(
+                info = info,
+                status = updateStatus,
+                onUpdate = {
+                    updateScope.launch {
+                        updateStatus = "скачивание…"
+                        try {
+                            val file = Updater.download(info)
+                            updateStatus = "запуск установщика…"
+                            Updater.launchInstaller(file)
+                            onQuit()
+                        } catch (e: Exception) {
+                            updateStatus = "ошибка: ${e.message}"
+                        }
+                    }
+                },
+                onDismiss = { update = null },
+            )
+        }
+        Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
             NavRail(selected, onSelect = { selected = it; running = null; builderOpen = false; runnerRecipe = null; skillEditorOpen = false }, unread = store.unreadCount())
             Box(Modifier.width(1.dp).fillMaxHeight().background(forgeColors.border))
             Box(Modifier.weight(1f).fillMaxHeight()) {
@@ -134,6 +173,7 @@ fun WorkshopApp(
                 }
             }
         }
+      }
     }
 }
 
@@ -141,5 +181,28 @@ fun WorkshopApp(
 private fun Placeholder(text: String) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(text, color = forgeColors.inkFaint, fontSize = 15.sp)
+    }
+}
+
+/** Slim ember bar shown when a newer GitHub Release is available. */
+@Composable
+private fun UpdateBar(info: UpdateInfo, status: String?, onUpdate: () -> Unit, onDismiss: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().background(forgeColors.ember.copy(alpha = 0.16f)).padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Доступна версия ${info.version}", color = forgeColors.ember, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.width(12.dp))
+        if (status != null) {
+            Text(status, color = forgeColors.inkMuted, fontSize = 12.sp)
+        }
+        Spacer(Modifier.weight(1f))
+        if (status == null) {
+            Box(
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(forgeColors.ember).clickable { onUpdate() }.padding(horizontal = 14.dp, vertical = 7.dp),
+            ) { Text("Обновить", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
+            Spacer(Modifier.width(10.dp))
+            Text("позже", color = forgeColors.inkMuted, fontSize = 12.sp, modifier = Modifier.clickable { onDismiss() }.padding(6.dp))
+        }
     }
 }
