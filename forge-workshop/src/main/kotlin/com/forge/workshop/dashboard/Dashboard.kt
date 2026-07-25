@@ -40,19 +40,28 @@ class SampleDashboardRepository : DashboardRepository {
     }
 }
 
-/** Holds the current [DashboardState]; polled by the app on an interval and by manual refresh. */
+/**
+ * Holds the current [DashboardState]; polled by the app on an interval and by manual refresh.
+ *
+ * Stale-while-revalidate: after the first successful load the previous data stays on screen while a
+ * new poll runs, and a transient error/blip doesn't wipe it. This kills the "tasks vanish then come
+ * back" flicker — [DashboardState.Loading] only shows before there is ever any data, and errors are
+ * only surfaced when we have nothing better to show.
+ */
 class DashboardHolder(private val repo: DashboardRepository) {
     var state by mutableStateOf<DashboardState>(DashboardState.Loading)
         private set
 
+    private var lastLoaded: DashboardState.Loaded? = null
+
     suspend fun refresh() {
-        state = DashboardState.Loading
+        if (lastLoaded == null) state = DashboardState.Loading
         state = try {
-            DashboardState.Loaded(repo.load(), LocalTime.now().format(TIME))
+            DashboardState.Loaded(repo.load(), LocalTime.now().format(TIME)).also { lastLoaded = it }
         } catch (e: NotConfiguredException) {
-            DashboardState.NotConfigured
+            lastLoaded ?: DashboardState.NotConfigured
         } catch (e: Exception) {
-            DashboardState.Error(e.message ?: "ошибка загрузки")
+            lastLoaded ?: DashboardState.Error(e.message ?: "ошибка загрузки")
         }
     }
 
