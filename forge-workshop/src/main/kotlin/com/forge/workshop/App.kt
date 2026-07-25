@@ -39,7 +39,7 @@ import com.forge.workshop.foundry.FoundryScreen
 import com.forge.workshop.foundry.SkillSpec
 import com.forge.workshop.history.HistoryScreen
 import com.forge.workshop.history.HistoryStore
-import com.forge.workshop.integrations.IntegrationsScreen
+import com.forge.workshop.integrations.SettingsScreen
 import com.forge.workshop.nav.NavItem
 import com.forge.workshop.nav.NavRail
 import com.forge.workshop.recipe.RecipeBuilderScreen
@@ -81,6 +81,7 @@ fun WorkshopApp(
     val skillStore = remember { SkillStore(ForgeDirs.dataDir().resolve("skills")) }
     var skillEditorOpen by remember { mutableStateOf(false) }
     var skillEditorInitial by remember { mutableStateOf<Skill?>(null) }
+    var settingsOpen by remember { mutableStateOf(false) }
     val history = remember { HistoryStore() }
 
     // Fetch fresh data whenever the Bench is opened (background polling only runs while the
@@ -113,11 +114,18 @@ fun WorkshopApp(
             )
         }
         Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
-            NavRail(selected, onSelect = { selected = it; running = null; builderOpen = false; runnerRecipe = null; skillEditorOpen = false }, unread = store.unreadCount())
+            NavRail(
+                selected,
+                onSelect = { selected = it; running = null; builderOpen = false; runnerRecipe = null; skillEditorOpen = false; settingsOpen = false },
+                unread = store.unreadCount(),
+                settingsActive = settingsOpen,
+                onSettings = { settingsOpen = true },
+            )
             Box(Modifier.width(1.dp).fillMaxHeight().background(forgeColors.border))
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 val current = running
                 when {
+                    settingsOpen -> SettingsScreen(secrets, refreshMinutes, onIntervalChange, onSaved, store)
                     current != null && current.title == "Create Jira Story" -> CreateIssueScreen(
                         secrets = secrets,
                         store = store,
@@ -169,7 +177,7 @@ fun WorkshopApp(
                     )
                     selected == NavItem.SPARKS -> SparksScreen(store)
                     selected == NavItem.HISTORY -> HistoryScreen(history)
-                    else -> IntegrationsScreen(secrets, refreshMinutes, onIntervalChange, onSaved, store)
+                    else -> {}
                 }
             }
         }

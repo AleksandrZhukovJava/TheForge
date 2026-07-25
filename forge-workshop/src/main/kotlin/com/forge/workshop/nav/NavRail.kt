@@ -40,11 +40,16 @@ enum class NavItem(val label: String) {
     SKILLS("Skills"),
     SPARKS("Sparks"),
     HISTORY("History"),
-    INTEGRATIONS("Integrations"),
 }
 
 @Composable
-fun NavRail(selected: NavItem, onSelect: (NavItem) -> Unit, unread: Int = 0) {
+fun NavRail(
+    selected: NavItem,
+    onSelect: (NavItem) -> Unit,
+    unread: Int = 0,
+    settingsActive: Boolean = false,
+    onSettings: () -> Unit = {},
+) {
     Column(
         modifier = Modifier
             .width(210.dp)
@@ -66,6 +71,7 @@ fun NavRail(selected: NavItem, onSelect: (NavItem) -> Unit, unread: Int = 0) {
             NavRow(item, item == selected, if (item == NavItem.SPARKS) unread else 0) { onSelect(item) }
         }
         Spacer(Modifier.weight(1f))
+        SettingsRow(settingsActive, onSettings)
         Row(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -73,6 +79,48 @@ fun NavRail(selected: NavItem, onSelect: (NavItem) -> Unit, unread: Int = 0) {
             Box24Avatar()
             Spacer(Modifier.width(10.dp))
             Text("Aleksandr · 2", color = forgeColors.inkFaint, fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun SettingsRow(active: Boolean, onClick: () -> Unit) {
+    val fg = if (active) forgeColors.ember else forgeColors.inkMuted
+    val bg = if (active) forgeColors.ember.copy(alpha = 0.12f) else Color.Transparent
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(9.dp))
+            .background(bg)
+            .clickable { onClick() }
+            .padding(horizontal = 11.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        GearIcon(fg)
+        Spacer(Modifier.width(11.dp))
+        Text("Настройки", color = fg, fontSize = 14.sp, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun GearIcon(tint: Color) {
+    Canvas(modifier = Modifier.size(18.dp)) {
+        val s = size.minDimension
+        val c = center
+        drawCircle(tint, radius = s * 0.30f, style = Stroke(width = s * 0.10f))
+        drawCircle(tint, radius = s * 0.10f)
+        // six teeth
+        for (i in 0 until 6) {
+            val a = Math.toRadians((i * 60).toDouble())
+            val dx = kotlin.math.cos(a).toFloat()
+            val dy = kotlin.math.sin(a).toFloat()
+            drawLine(
+                tint,
+                Offset(c.x + dx * s * 0.34f, c.y + dy * s * 0.34f),
+                Offset(c.x + dx * s * 0.46f, c.y + dy * s * 0.46f),
+                strokeWidth = s * 0.10f,
+                cap = StrokeCap.Round,
+            )
         }
     }
 }
@@ -168,12 +216,6 @@ private fun NavIcon(item: NavItem, tint: Color) {
                 drawCircle(tint, radius = s * 0.4f, style = Stroke(width = s * 0.09f))
                 drawLine(tint, center, Offset(center.x, center.y - s * 0.26f), strokeWidth = s * 0.09f, cap = StrokeCap.Round)
                 drawLine(tint, center, Offset(center.x + s * 0.2f, center.y + s * 0.05f), strokeWidth = s * 0.09f, cap = StrokeCap.Round)
-            }
-            NavItem.INTEGRATIONS -> {
-                val st = Stroke(width = s * 0.09f)
-                val rr = CornerRadius(s * 0.13f)
-                drawRoundRect(tint, topLeft = Offset(s * 0.09f, s * 0.3f), size = Size(s * 0.46f, s * 0.4f), cornerRadius = rr, style = st)
-                drawRoundRect(tint, topLeft = Offset(s * 0.45f, s * 0.3f), size = Size(s * 0.46f, s * 0.4f), cornerRadius = rr, style = st)
             }
             NavItem.RECIPES -> {
                 // node graph: two nodes joined by an edge

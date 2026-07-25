@@ -49,57 +49,73 @@ import kotlinx.coroutines.launch
 
 private data class Field(val label: String, val key: String, val secret: Boolean = false)
 
+private val SETTINGS_TABS = listOf("Интеграции", "Обновление", "Блоки", "ИИ")
+
+/** General settings, tabbed like the old widget. Opened via the gear in the nav rail. */
 @Composable
-fun IntegrationsScreen(
+fun SettingsScreen(
     secrets: SecretStore,
     refreshMinutes: Int,
     onIntervalChange: (Int) -> Unit,
     onSaved: () -> Unit,
     store: AppDataStore,
 ) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
-    ) {
-        Text("Integrations", color = forgeColors.ink, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+    var tab by remember { mutableStateOf(0) }
+    Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+        Text("Настройки", color = forgeColors.ink, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
         Spacer(Modifier.height(4.dp))
-        Text(
-            "Токены сохраняются локально (…/TheForge) и переживают перезапуск. Ввести нужно один раз.",
-            color = forgeColors.inkFaint,
-            fontSize = 13.sp,
-        )
-        Spacer(Modifier.height(18.dp))
+        Text("Токены и настройки хранятся локально (…/TheForge) и переживают перезапуск.", color = forgeColors.inkFaint, fontSize = 13.sp)
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SETTINGS_TABS.forEachIndexed { i, title -> TabChip(title, i == tab) { tab = i } }
+        }
+        Spacer(Modifier.height(16.dp))
+        Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+            when (tab) {
+                0 -> {
+                    IntegrationCard(
+                        title = "Jira",
+                        accent = forgeColors.tool,
+                        fields = listOf(
+                            Field("Base URL", "jira.base-url"),
+                            Field("Email", "jira.email"),
+                            Field("API token", "jira.token", secret = true),
+                        ),
+                        requiredKey = "jira.token",
+                        secrets = secrets,
+                        onSaved = onSaved,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    IntegrationCard(
+                        title = "GitLab",
+                        accent = forgeColors.press,
+                        fields = listOf(
+                            Field("Base URL", "gitlab.base-url"),
+                            Field("Personal access token", "gitlab.token", secret = true),
+                        ),
+                        requiredKey = "gitlab.token",
+                        secrets = secrets,
+                        onSaved = onSaved,
+                    )
+                }
+                1 -> RefreshCard(refreshMinutes, onIntervalChange)
+                2 -> BlocksCard(store)
+                3 -> AiCard(secrets, store)
+            }
+        }
+    }
+}
 
-        RefreshCard(refreshMinutes, onIntervalChange)
-        Spacer(Modifier.height(12.dp))
-        BlocksCard(store)
-        Spacer(Modifier.height(12.dp))
-        AiCard(secrets, store)
-        Spacer(Modifier.height(12.dp))
-
-        IntegrationCard(
-            title = "Jira",
-            accent = forgeColors.tool,
-            fields = listOf(
-                Field("Base URL", "jira.base-url"),
-                Field("Email", "jira.email"),
-                Field("API token", "jira.token", secret = true),
-            ),
-            requiredKey = "jira.token",
-            secrets = secrets,
-            onSaved = onSaved,
-        )
-        Spacer(Modifier.height(12.dp))
-        IntegrationCard(
-            title = "GitLab",
-            accent = forgeColors.press,
-            fields = listOf(
-                Field("Base URL", "gitlab.base-url"),
-                Field("Personal access token", "gitlab.token", secret = true),
-            ),
-            requiredKey = "gitlab.token",
-            secrets = secrets,
-            onSaved = onSaved,
-        )
+@Composable
+private fun TabChip(title: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .then(if (selected) Modifier.background(forgeColors.ember.copy(alpha = 0.15f)).border(1.dp, forgeColors.ember, RoundedCornerShape(8.dp)) else Modifier.border(1.dp, forgeColors.border, RoundedCornerShape(8.dp)))
+            .clickable { onClick() }
+            .padding(horizontal = 13.dp, vertical = 8.dp),
+    ) {
+        Text(title, color = if (selected) forgeColors.ember else forgeColors.inkMuted, fontSize = 13.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium)
     }
 }
 
