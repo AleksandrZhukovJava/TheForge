@@ -62,6 +62,11 @@ class JiraClient(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
+    private companion object {
+        /** Working search path per base URL — cached across recreated clients (Cloud v3 vs Server v2). */
+        val searchPathCache = java.util.concurrent.ConcurrentHashMap<String, String>()
+    }
+
     suspend fun loadIssue(key: String): JiraIssue {
         val body = http.get("${config.baseUrl}/rest/api/3/issue/$key") {
             header(HttpHeaders.Authorization, authHeader)
@@ -83,8 +88,15 @@ class JiraClient(
                 fields = listOf("summary", "status"),
             ),
         )
+        // Try the last-known-good path for this host first (Cloud v3 vs Server/DC v2) so we don't
+        // pay a failing round-trip on every poll.
+        val paths = buildList {
+            searchPathCache[config.baseUrl]?.let { add(it) }
+            add("/rest/api/3/search/jql")
+            add("/rest/api/2/search")
+        }.distinct()
         var last: Exception? = null
-        for (path in listOf("/rest/api/3/search/jql", "/rest/api/2/search")) {
+        for (path in paths) {
             try {
                 val body = http.post("${config.baseUrl}$path") {
                     header(HttpHeaders.Authorization, authHeader)
@@ -92,11 +104,13 @@ class JiraClient(
                     header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
                     setBody(payload)
                 }.readJson()
+                searchPathCache[config.baseUrl] = path
                 return json.decodeFromString<JiraSearchResponse>(body).issues
             } catch (e: Exception) {
                 last = e
             }
         }
+        searchPathCache.remove(config.baseUrl)
         throw last ?: IllegalStateException("Jira search failed")
     }
 

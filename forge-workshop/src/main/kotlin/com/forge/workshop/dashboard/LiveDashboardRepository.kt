@@ -10,19 +10,29 @@ import com.forge.workshop.ui.PillStatus
 import com.forge.workshop.widget.WRow
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 
 /**
  * Live data via the cheap personal endpoints (Jira `assignee=currentUser()`, GitLab
  * `assigned_to_me`). Each integration is optional: whichever has a token contributes its rows.
  * Throws [NotConfiguredException] when neither is set up.
+ *
+ * Fast path: one shared HTTP client, Jira and GitLab fetched in parallel, and the working Jira auth
+ * scheme is cached so we stop re-probing Basic-then-Bearer on every poll (the main startup lag).
  */
 class LiveDashboardRepository(private val secrets: SecretStore) : DashboardRepository {
 
-    override suspend fun load(): DashboardData {
-        val jira = named("Jira") { loadJira() }
-        val mrs = named("GitLab") { loadMergeRequests() }
+    private val http = HttpClient(CIO)
+    @Volatile private var workingJiraAuth: String? = null
+
+    override suspend fun load(): DashboardData = coroutineScope {
+        val jiraD = async { named("Jira") { loadJira() } }
+        val mrsD = async { named("GitLab") { loadMergeRequests() } }
+        val jira = jiraD.await()
+        val mrs = mrsD.await()
         if (jira == null && mrs == null) throw NotConfiguredException()
-        return DashboardData(
+        DashboardData(
             jira = jira ?: emptyList(),
             mrs = mrs ?: emptyList(),
             pipelines = emptyList(),
@@ -44,40 +54,34 @@ class LiveDashboardRepository(private val secrets: SecretStore) : DashboardRepos
         val token = secrets.get("jira.token") ?: return null
         val email = secrets.get("jira.email")
         // Email present → Cloud Basic; also try Bearer PAT (Server/Data Center).
-        val auths = buildList {
+        val allAuths = buildList {
             if (!email.isNullOrBlank()) add(JiraAuth.basic(email, token))
             add(JiraAuth.bearer(token))
         }
-        val http = HttpClient(CIO)
-        return try {
-            var result: List<WRow>? = null
-            var last: Exception? = null
-            for (auth in auths) {
-                try {
-                    result = JiraClient(http, JiraConfig(base), auth).searchAssignedToMe()
-                        .map { WRow(it.key, it.fields.summary, mapJiraStatus(it.fields.status.name), url = "$base/browse/${it.key}", statusName = it.fields.status.name) }
-                    break
-                } catch (e: Exception) {
-                    last = e
-                }
+        // Try the last-known-good scheme first so we don't re-probe failing ones every poll.
+        val ordered = (listOfNotNull(workingJiraAuth) + allAuths).distinct().filter { it in allAuths }
+        var last: Exception? = null
+        for (auth in ordered) {
+            try {
+                val rows = JiraClient(http, JiraConfig(base), auth).searchAssignedToMe()
+                    .map { WRow(it.key, it.fields.summary, mapJiraStatus(it.fields.status.name), url = "$base/browse/${it.key}", statusName = it.fields.status.name) }
+                workingJiraAuth = auth
+                return rows
+            } catch (e: Exception) {
+                last = e
             }
-            result ?: throw (last ?: IllegalStateException("не удалось получить задачи"))
-        } finally {
-            http.close()
         }
+        // Every scheme failed — the cached one may be stale, so clear it for a fresh probe next time.
+        workingJiraAuth = null
+        throw (last ?: IllegalStateException("не удалось получить задачи"))
     }
 
     private suspend fun loadMergeRequests(): List<WRow>? {
         val url = secrets.get("gitlab.base-url")?.trimEnd('/') ?: return null
         val token = secrets.get("gitlab.token") ?: return null
-        val http = HttpClient(CIO)
-        return try {
-            GitLabClient(http, GitLabConfig(url), token)
-                .listAssignedMergeRequests()
-                .map { WRow("!${it.iid}", it.title, mapMrState(it.state), url = it.webUrl, statusName = it.state) }
-        } finally {
-            http.close()
-        }
+        return GitLabClient(http, GitLabConfig(url), token)
+            .listAssignedMergeRequests()
+            .map { WRow("!${it.iid}", it.title, mapMrState(it.state), url = it.webUrl, statusName = it.state) }
     }
 
     private fun mapJiraStatus(name: String): PillStatus = when (name.lowercase()) {
