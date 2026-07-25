@@ -19,6 +19,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,6 +41,7 @@ import com.forge.workshop.data.AppDataStore
 import com.forge.workshop.data.LOCAL_STATUS
 import com.forge.workshop.data.Priority
 import com.forge.workshop.dashboard.DashboardState
+import com.forge.workshop.recipe.SavedRecipe
 import com.forge.workshop.theme.forgeColors
 import com.forge.workshop.ui.PillStatus
 import com.forge.workshop.ui.StatusPill
@@ -59,7 +62,7 @@ private data class BenchTask(
 
 /** Bench — the workbench: Jira tasks + your own tasks, with priority, overlays and MRs. */
 @Composable
-fun BenchScreen(state: DashboardState, store: AppDataStore, onRefresh: () -> Unit) {
+fun BenchScreen(state: DashboardState, store: AppDataStore, onRefresh: () -> Unit, onRunRecipe: (SavedRecipe) -> Unit = {}) {
     Column(Modifier.fillMaxSize().padding(24.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Bench", color = forgeColors.ink, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
@@ -79,14 +82,14 @@ fun BenchScreen(state: DashboardState, store: AppDataStore, onRefresh: () -> Uni
         }
         Spacer(Modifier.height(18.dp))
         Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            TasksColumn(state, store, Modifier.weight(1f))
+            TasksColumn(state, store, onRunRecipe, Modifier.weight(1f))
             MrColumn(state, Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-private fun TasksColumn(state: DashboardState, store: AppDataStore, modifier: Modifier) {
+private fun TasksColumn(state: DashboardState, store: AppDataStore, onRunRecipe: (SavedRecipe) -> Unit, modifier: Modifier) {
     val jira = (state as? DashboardState.Loaded)?.data?.jira.orEmpty()
     val all = buildList {
         jira.forEach {
@@ -134,6 +137,7 @@ private fun TasksColumn(state: DashboardState, store: AppDataStore, modifier: Mo
                                 isEditing = editing == task.id,
                                 onToggleEdit = { editing = if (editing == task.id) null else task.id },
                                 onSaveEdit = { store.updateLocalTask(task.id, it); editing = null },
+                                onRunRecipe = onRunRecipe,
                             )
                         }
                     }
@@ -162,6 +166,7 @@ private fun TaskCard(
     isEditing: Boolean,
     onToggleEdit: () -> Unit,
     onSaveEdit: (String) -> Unit,
+    onRunRecipe: (SavedRecipe) -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -201,10 +206,32 @@ private fun TaskCard(
                     Action("✎", isEditing, forgeColors.tool) { onToggleEdit() }
                     Action("✕", false, forgeColors.crit) { store.deleteLocalTask(task.id) }
                 }
+                RecipeControl(task.id, store, onRunRecipe)
                 if (task.url != null) {
                     Spacer(Modifier.weight(1f))
                     Text("открыть ↗", color = forgeColors.ember, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable { openInBrowser(task.url) })
                 }
+            }
+        }
+    }
+}
+
+/** Bind / run a saved recipe for a task. Bound recipe name shows in Smith color; menu picks/unbinds. */
+@Composable
+private fun RecipeControl(taskId: String, store: AppDataStore, onRun: (SavedRecipe) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    val bound = store.taskRecipe(taskId)
+    Box {
+        Action(if (bound != null) "▶ ${bound.name}" else "рецепт ▾", bound != null, forgeColors.smith) { open = true }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            val recipes = store.data.recipes
+            if (recipes.isEmpty()) {
+                DropdownMenuItem(text = { Text("нет рецептов — создайте в Recipes", fontSize = 12.sp) }, onClick = { open = false })
+            } else {
+                recipes.forEach { r ->
+                    DropdownMenuItem(text = { Text(r.name) }, onClick = { store.setTaskRecipe(taskId, r.id); open = false; onRun(r) })
+                }
+                if (bound != null) DropdownMenuItem(text = { Text("отвязать", color = forgeColors.crit) }, onClick = { store.setTaskRecipe(taskId, null); open = false })
             }
         }
     }

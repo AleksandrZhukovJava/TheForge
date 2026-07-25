@@ -33,6 +33,7 @@ import com.forge.workshop.nav.NavItem
 import com.forge.workshop.nav.NavRail
 import com.forge.workshop.recipe.RecipeBuilderScreen
 import com.forge.workshop.recipe.RecipeListScreen
+import com.forge.workshop.recipe.RecipeRunnerScreen
 import com.forge.workshop.recipe.SavedRecipe
 import com.forge.workshop.runner.RunnerScreen
 import com.forge.workshop.sparks.SparksScreen
@@ -53,6 +54,7 @@ fun WorkshopApp(
     var running by remember { mutableStateOf<SkillSpec?>(null) }
     var builderOpen by remember { mutableStateOf(false) }
     var builderInitial by remember { mutableStateOf<SavedRecipe?>(null) }
+    var runnerRecipe by remember { mutableStateOf<SavedRecipe?>(null) }
     val history = remember { HistoryStore() }
 
     // Fetch fresh data whenever the Bench is opened (background polling only runs while the
@@ -64,7 +66,7 @@ fun WorkshopApp(
 
     Surface(color = forgeColors.ground, modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxSize()) {
-            NavRail(selected, onSelect = { selected = it; running = null; builderOpen = false }, unread = store.unreadCount())
+            NavRail(selected, onSelect = { selected = it; running = null; builderOpen = false; runnerRecipe = null }, unread = store.unreadCount())
             Box(Modifier.width(1.dp).fillMaxHeight().background(forgeColors.border))
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 val current = running
@@ -85,6 +87,10 @@ fun WorkshopApp(
                         onBack = { running = null },
                         onFinished = { ok -> history.record(current.title, ok) },
                     )
+                    selected == NavItem.RECIPES && runnerRecipe != null -> RecipeRunnerScreen(
+                        recipe = runnerRecipe!!,
+                        onBack = { runnerRecipe = null },
+                    )
                     selected == NavItem.RECIPES && builderOpen -> RecipeBuilderScreen(
                         store = store,
                         initial = builderInitial,
@@ -94,8 +100,9 @@ fun WorkshopApp(
                         store = store,
                         onNew = { builderInitial = null; builderOpen = true },
                         onEdit = { builderInitial = it; builderOpen = true },
+                        onRun = { runnerRecipe = it },
                     )
-                    selected == NavItem.BENCH -> BenchScreen(dashboardState, store, onRefresh)
+                    selected == NavItem.BENCH -> BenchScreen(dashboardState, store, onRefresh, onRunRecipe = { runnerRecipe = it; selected = NavItem.RECIPES })
                     selected == NavItem.FOUNDRY -> FoundryScreen(onRun = { running = it })
                     selected == NavItem.SPARKS -> SparksScreen(store)
                     selected == NavItem.HISTORY -> HistoryScreen(history)

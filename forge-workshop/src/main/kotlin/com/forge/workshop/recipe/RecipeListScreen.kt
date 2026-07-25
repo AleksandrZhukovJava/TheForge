@@ -34,6 +34,7 @@ fun RecipeListScreen(
     store: AppDataStore,
     onNew: () -> Unit,
     onEdit: (SavedRecipe) -> Unit,
+    onRun: (SavedRecipe) -> Unit,
 ) {
     Column(Modifier.fillMaxSize().padding(24.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -57,14 +58,14 @@ fun RecipeListScreen(
                 modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                recipes.forEach { r -> RecipeRow(r, onEdit = { onEdit(r) }, onDelete = { store.deleteRecipe(r.id) }) }
+                recipes.forEach { r -> RecipeRow(r, onRun = { onRun(r) }, onEdit = { onEdit(r) }, onDelete = { store.deleteRecipe(r.id) }) }
             }
         }
     }
 }
 
 @Composable
-private fun RecipeRow(recipe: SavedRecipe, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun RecipeRow(recipe: SavedRecipe, onRun: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     val strikeCount = recipe.nodes.count { it.typeId != START_ID && it.typeId != END_ID }
     Row(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(forgeColors.surface2)
@@ -76,6 +77,8 @@ private fun RecipeRow(recipe: SavedRecipe, onEdit: () -> Unit, onDelete: () -> U
             Spacer(Modifier.height(3.dp))
             Text("$strikeCount страйк(ов) · ${recipe.links.size} нитей", color = forgeColors.inkMuted, fontSize = 12.sp)
         }
+        Text("▶ запустить", color = forgeColors.good, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable { onRun() }.padding(8.dp))
+        Spacer(Modifier.width(6.dp))
         Text("править", color = forgeColors.ember, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable { onEdit() }.padding(8.dp))
         Spacer(Modifier.width(6.dp))
         Text("удалить", color = forgeColors.crit, fontSize = 12.sp, modifier = Modifier.clickable { onDelete() }.padding(8.dp))
