@@ -25,6 +25,9 @@ class StrikeExecutor(
     private val policy: PolicyEngine = PolicyEngine(Policy.ALLOW_ALL),
 ) {
 
+    /** Reset per-run policy counters — call once at the start of a Recipe run. */
+    fun beginRun() = policy.beginRun()
+
     suspend fun run(strike: StrikeDecl, stock: Stock): StrikeOutcome {
         // Rule set first: no action runs without clearing the policy gate.
         val verdict = policy.check(strike)
