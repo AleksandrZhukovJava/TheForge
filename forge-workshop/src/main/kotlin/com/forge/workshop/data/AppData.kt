@@ -86,6 +86,8 @@ data class AppData(
     val recipes: List<SavedRecipe> = emptyList(),
     /** Recipe bound to a task, keyed by issue key / local task id. */
     val taskRecipe: Map<String, String> = emptyMap(),
+    /** Active skills project (folder under skills/). */
+    val skillProject: String = "default",
 )
 
 const val DEFAULT_PROMPT_TEMPLATE: String =
@@ -225,4 +227,6 @@ class AppDataStore(private val file: Path) {
     }
 
     fun taskRecipe(taskKey: String): SavedRecipe? = data.taskRecipe[taskKey]?.let { id -> data.recipes.firstOrNull { it.id == id } }
+
+    fun setSkillProject(project: String) = update { it.copy(skillProject = project.ifBlank { "default" }) }
 }

@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.forge.executors.secret.ForgeDirs
 import com.forge.sdk.secret.SecretStore
 import com.forge.workshop.bench.BenchScreen
 import com.forge.workshop.create.CreateIssueScreen
@@ -36,6 +37,10 @@ import com.forge.workshop.recipe.RecipeListScreen
 import com.forge.workshop.recipe.RecipeRunnerScreen
 import com.forge.workshop.recipe.SavedRecipe
 import com.forge.workshop.runner.RunnerScreen
+import com.forge.workshop.skills.Skill
+import com.forge.workshop.skills.SkillEditorScreen
+import com.forge.workshop.skills.SkillStore
+import com.forge.workshop.skills.SkillsScreen
 import com.forge.workshop.sparks.SparksScreen
 import com.forge.workshop.theme.forgeColors
 
@@ -55,6 +60,9 @@ fun WorkshopApp(
     var builderOpen by remember { mutableStateOf(false) }
     var builderInitial by remember { mutableStateOf<SavedRecipe?>(null) }
     var runnerRecipe by remember { mutableStateOf<SavedRecipe?>(null) }
+    val skillStore = remember { SkillStore(ForgeDirs.dataDir().resolve("skills")) }
+    var skillEditorOpen by remember { mutableStateOf(false) }
+    var skillEditorInitial by remember { mutableStateOf<Skill?>(null) }
     val history = remember { HistoryStore() }
 
     // Fetch fresh data whenever the Bench is opened (background polling only runs while the
@@ -66,7 +74,7 @@ fun WorkshopApp(
 
     Surface(color = forgeColors.ground, modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxSize()) {
-            NavRail(selected, onSelect = { selected = it; running = null; builderOpen = false; runnerRecipe = null }, unread = store.unreadCount())
+            NavRail(selected, onSelect = { selected = it; running = null; builderOpen = false; runnerRecipe = null; skillEditorOpen = false }, unread = store.unreadCount())
             Box(Modifier.width(1.dp).fillMaxHeight().background(forgeColors.border))
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 val current = running
@@ -104,6 +112,18 @@ fun WorkshopApp(
                     )
                     selected == NavItem.BENCH -> BenchScreen(dashboardState, store, onRefresh, onRunRecipe = { runnerRecipe = it; selected = NavItem.RECIPES })
                     selected == NavItem.FOUNDRY -> FoundryScreen(onRun = { running = it })
+                    selected == NavItem.SKILLS && skillEditorOpen -> SkillEditorScreen(
+                        store = skillStore,
+                        project = store.data.skillProject,
+                        initial = skillEditorInitial,
+                        onBack = { skillEditorOpen = false },
+                    )
+                    selected == NavItem.SKILLS -> SkillsScreen(
+                        appData = store,
+                        skillStore = skillStore,
+                        onNew = { skillEditorInitial = null; skillEditorOpen = true },
+                        onEdit = { skillEditorInitial = it; skillEditorOpen = true },
+                    )
                     selected == NavItem.SPARKS -> SparksScreen(store)
                     selected == NavItem.HISTORY -> HistoryScreen(history)
                     else -> IntegrationsScreen(secrets, refreshMinutes, onIntervalChange, onSaved, store)

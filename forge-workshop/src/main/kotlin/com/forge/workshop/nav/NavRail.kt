@@ -37,6 +37,7 @@ enum class NavItem(val label: String) {
     BENCH("Bench"),
     FOUNDRY("Foundry"),
     RECIPES("Recipes"),
+    SKILLS("Skills"),
     SPARKS("Sparks"),
     HISTORY("History"),
     INTEGRATIONS("Integrations"),
@@ -180,6 +181,13 @@ private fun NavIcon(item: NavItem, tint: Color) {
                 drawCircle(tint, radius = s * 0.13f, center = Offset(s * 0.24f, s * 0.28f), style = st)
                 drawCircle(tint, radius = s * 0.13f, center = Offset(s * 0.74f, s * 0.62f), style = st)
                 drawLine(tint, Offset(s * 0.34f, s * 0.36f), Offset(s * 0.64f, s * 0.54f), s * 0.08f, StrokeCap.Round)
+            }
+            NavItem.SKILLS -> {
+                // an open book / memo: spine + two page blocks
+                val st = Stroke(width = s * 0.08f)
+                drawLine(tint, Offset(s * 0.5f, s * 0.24f), Offset(s * 0.5f, s * 0.78f), s * 0.08f, StrokeCap.Round)
+                drawRoundRect(tint, topLeft = Offset(s * 0.14f, s * 0.26f), size = Size(s * 0.32f, s * 0.5f), cornerRadius = CornerRadius(s * 0.05f), style = st)
+                drawRoundRect(tint, topLeft = Offset(s * 0.54f, s * 0.26f), size = Size(s * 0.32f, s * 0.5f), cornerRadius = CornerRadius(s * 0.05f), style = st)
             }
             NavItem.SPARKS -> {
                 // a four-point spark (star) struck off the anvil
