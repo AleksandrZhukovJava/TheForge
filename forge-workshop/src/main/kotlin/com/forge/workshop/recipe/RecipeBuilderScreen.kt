@@ -95,6 +95,34 @@ private fun bestPorts(a: RecipeNode, b: RecipeNode): Pair<Port, Port> {
 private fun hit(n: RecipeNode, p: Offset): Boolean =
     p.x >= n.x && p.x <= n.x + NODE_W && p.y >= n.y && p.y <= n.y + NODE_H
 
+private fun bezier(p0: Offset, c1: Offset, c2: Offset, p3: Offset, t: Float): Offset {
+    val u = 1 - t
+    return p0 * (u * u * u) + c1 * (3 * u * u * t) + c2 * (3 * u * t * t) + p3 * (t * t * t)
+}
+
+/** Nearest link to a board point within a small threshold — for click-to-delete a thread. */
+private fun nearestLink(p: Offset, nodes: List<RecipeNode>, links: List<RecipeLink>): RecipeLink? {
+    val byId = nodes.associateBy { it.id }
+    var best: RecipeLink? = null
+    var bestDist = 11f
+    links.forEach { link ->
+        val a = byId[link.from] ?: return@forEach
+        val b = byId[link.to] ?: return@forEach
+        val (pa, pb) = bestPorts(a, b)
+        val start = portPos(a, pa); val end = portPos(b, pb)
+        val curve = (hypot((end.x - start.x).toDouble(), (end.y - start.y).toDouble()).toFloat() * 0.4f).coerceIn(40f, 130f)
+        val c1 = start + portNormal(pa) * curve; val c2 = end + portNormal(pb) * curve
+        var t = 0f
+        while (t <= 1f) {
+            val pt = bezier(start, c1, c2, end, t)
+            val d = hypot((pt.x - p.x).toDouble(), (pt.y - p.y).toDouble()).toFloat()
+            if (d < bestDist) { bestDist = d; best = link }
+            t += 0.04f
+        }
+    }
+    return best
+}
+
 private fun modeColor(mode: StrikeMode, c: ForgeColors): Color = when (mode) {
     StrikeMode.AUTO -> c.tool
     StrikeMode.MANUAL -> c.master
@@ -170,6 +198,9 @@ fun RecipeBuilderScreen(
             }
         }
 
+        val warnings = RecipeValidation.validate(nodes, links)
+        if (warnings.isNotEmpty()) WarningsBanner(warnings)
+
         Row(Modifier.fillMaxSize()) {
             // Palette
             Column(
@@ -188,7 +219,12 @@ fun RecipeBuilderScreen(
                     .fillMaxHeight()
                     .clipToBounds()
                     .background(Color(0xFF0E0C0B))
-                    .pointerInput(Unit) { detectTapGestures { selected = null } },
+                    .pointerInput(Unit) {
+                        detectTapGestures { offset ->
+                            val link = nearestLink(offset, nodes, links)
+                            if (link != null) links.remove(link) else selected = null
+                        }
+                    },
             ) {
                 BoardCanvas(nodes, links, pendingStart, pendingPos)
                 nodes.forEach { node ->
@@ -236,6 +272,21 @@ private fun defaultAnchors(): List<RecipeNode> = listOf(
     RecipeNode(START_ID, START_ID, x = 80f, y = 70f),
     RecipeNode(END_ID, END_ID, x = 80f, y = 360f),
 )
+
+@Composable
+private fun WarningsBanner(warnings: List<String>) {
+    var open by remember { mutableStateOf(false) }
+    Column(
+        Modifier.fillMaxWidth().background(forgeColors.warn.copy(alpha = 0.12f)).padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Text(
+            "⚠ ${warnings.size} замечани${if (warnings.size == 1) "е" else "й"}   ${if (open) "▲" else "▼"}",
+            color = forgeColors.warn, fontSize = 12.sp, fontFamily = FontFamily.Monospace,
+            modifier = Modifier.clickable { open = !open }.padding(vertical = 2.dp),
+        )
+        if (open) warnings.forEach { Text("· $it", color = forgeColors.warn, fontSize = 12.sp) }
+    }
+}
 
 @Composable
 private fun BoardCanvas(nodes: List<RecipeNode>, links: List<RecipeLink>, pendingStart: Offset?, pendingPos: Offset?) {
@@ -382,7 +433,7 @@ private fun Inspector(
 ) {
     Text("НАСТРОЙКА", color = forgeColors.inkFaint, fontSize = 11.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
     if (node == null) {
-        Text("Выберите узел на доске. Наведите на узел и потяните «+», чтобы соединить.", color = forgeColors.inkMuted, fontSize = 13.sp)
+        Text("Выберите узел на доске. Наведите на узел и потяните «+», чтобы соединить. Клик по нити — удалить её.", color = forgeColors.inkMuted, fontSize = 13.sp)
         return
     }
     val anchor = node.typeId == START_ID || node.typeId == END_ID

@@ -100,6 +100,7 @@ fun WorkshopApp(
                         appData = store,
                         secrets = secrets,
                         skillStore = skillStore,
+                        onFinished = { ok -> history.record("Рецепт: ${runnerRecipe?.name ?: ""}", ok) },
                         onBack = { runnerRecipe = null },
                     )
                     selected == NavItem.RECIPES && builderOpen -> RecipeBuilderScreen(

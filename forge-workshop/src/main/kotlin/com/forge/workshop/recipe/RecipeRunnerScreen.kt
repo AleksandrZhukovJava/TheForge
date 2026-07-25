@@ -17,7 +17,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -138,12 +140,15 @@ fun RecipeRunnerScreen(
     appData: AppDataStore,
     secrets: SecretStore,
     skillStore: SkillStore,
+    onFinished: (Boolean) -> Unit,
     onBack: () -> Unit,
 ) {
     val nodes = recipe.nodes
     val byId = remember(recipe) { nodes.associateBy { it.id } }
     val gate = remember { UiMasterGate() }
     val scope = rememberCoroutineScope()
+    val log = remember(recipe) { mutableStateListOf<String>() }
+    val warnings = remember(recipe) { RecipeValidation.validate(recipe.nodes, recipe.links) }
 
     // Shared across the run: one policy (quotas persist over the whole recipe) and one LLM client.
     val policy = remember(recipe) { PolicyEngine(DefaultPolicy) }
@@ -185,7 +190,7 @@ fun RecipeRunnerScreen(
 
     fun reset() {
         states.clear(); nodes.forEach { states[it.id] = RunState.PENDING }
-        path.clear(); forkOptions = null; running = false; finished = false; autoTarget = null; pickTarget = false
+        path.clear(); log.clear(); forkOptions = null; running = false; finished = false; autoTarget = null; pickTarget = false
         policy.beginRun()
         currentId = startId
         note = "готов к запуску"
@@ -217,9 +222,16 @@ fun RecipeRunnerScreen(
                 is StrikeOutcome.Done -> {
                     success = outcome.result.status == StrikeStatus.OK
                     states[id] = if (success) RunState.DONE else RunState.FAILED
+                    log += "${if (success) "✓" else "✗"} ${type.name} — ${outcome.result.output ?: "готово"}"
                 }
-                is StrikeOutcome.Rejected -> { states[id] = RunState.BLOCKED; running = false; note = "отклонено (Master)"; return }
-                is StrikeOutcome.Blocked -> { states[id] = RunState.BLOCKED; running = false; note = "заблокировано: ${outcome.reason}"; return }
+                is StrikeOutcome.Rejected -> {
+                    states[id] = RunState.BLOCKED; running = false; note = "отклонено (Master)"
+                    log += "✋ ${type.name} — отклонено"; onFinished(false); return
+                }
+                is StrikeOutcome.Blocked -> {
+                    states[id] = RunState.BLOCKED; running = false; note = "заблокировано: ${outcome.reason}"
+                    log += "⛔ ${type.name} — ${outcome.reason}"; onFinished(false); return
+                }
             }
         } else {
             states[id] = RunState.DONE
@@ -227,7 +239,7 @@ fun RecipeRunnerScreen(
         path.add(id)
         val succ = eligible(node, success)
         when {
-            node.typeId == END_ID || succ.isEmpty() -> { currentId = null; finished = true; running = false; note = "рецепт завершён" }
+            node.typeId == END_ID || succ.isEmpty() -> { currentId = null; finished = true; running = false; note = "рецепт завершён"; log += "— завершено —"; onFinished(true) }
             succ.size == 1 -> currentId = succ.first()
             else -> { forkOptions = succ; running = false; note = "развилка — выберите ветку" }
         }
@@ -282,8 +294,14 @@ fun RecipeRunnerScreen(
             Text(note, color = forgeColors.inkMuted, fontSize = 12.sp)
         }
 
+        if (warnings.isNotEmpty()) {
+            Row(Modifier.fillMaxWidth().background(forgeColors.warn.copy(alpha = 0.12f)).padding(horizontal = 16.dp, vertical = 6.dp)) {
+                Text("⚠ ${warnings.joinToString("; ")}", color = forgeColors.warn, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            }
+        }
+
         Box(
-            modifier = Modifier.fillMaxSize().clipToBounds().background(Color(0xFF0E0C0B)),
+            modifier = Modifier.fillMaxWidth().weight(1f).clipToBounds().background(Color(0xFF0E0C0B)),
         ) {
             RunnerCanvas(nodes, recipe.links, states, currentId)
             nodes.forEach { node ->
@@ -296,9 +314,28 @@ fun RecipeRunnerScreen(
                 RunNodeCard(node, st, node.id == currentId, clickable, forkOptions != null || pickTarget) { onNodeClick(node.id) }
             }
         }
+
+        LogPanel(log)
     }
 
     gate.pending?.let { req -> ConfirmModal(req, onApprove = { gate.answer(true) }, onReject = { gate.answer(false) }) }
+}
+
+@Composable
+private fun LogPanel(log: List<String>) {
+    var open by remember { mutableStateOf(true) }
+    Column(Modifier.fillMaxWidth().background(forgeColors.surface1).padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Text(
+            "ЛОГ ПРОГОНА · ${log.size}   ${if (open) "▼" else "▲"}",
+            color = forgeColors.inkFaint, fontSize = 11.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp,
+            modifier = Modifier.clickable { open = !open }.padding(vertical = 2.dp),
+        )
+        if (open && log.isNotEmpty()) {
+            Column(Modifier.fillMaxWidth().height(96.dp).verticalScroll(rememberScrollState())) {
+                log.forEach { Text(it, color = forgeColors.inkMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace) }
+            }
+        }
+    }
 }
 
 @Composable
