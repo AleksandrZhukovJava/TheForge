@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -59,10 +60,18 @@ import com.forge.sdk.domain.StrikeDecl
 import com.forge.sdk.domain.StrikeId
 import com.forge.sdk.domain.StrikeResult
 import com.forge.sdk.domain.StrikeStatus
+import com.forge.sdk.secret.SecretStore
+import com.forge.workshop.data.AppDataStore
+import com.forge.workshop.llm.LlmClient
+import com.forge.workshop.llm.LlmProfile
 import com.forge.workshop.runner.ConfirmModal
 import com.forge.workshop.runner.UiMasterGate
+import com.forge.workshop.skills.SkillStore
+import com.forge.workshop.smith.SmithExecutor
 import com.forge.workshop.theme.ForgeColors
 import com.forge.workshop.theme.forgeColors
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -98,15 +107,24 @@ private fun rBestPorts(a: RecipeNode, b: RecipeNode): Pair<RPort, RPort> {
     }
 }
 
-/** Stub Tool used until S2 wires real Tool/Smith execution — proves the run path through the engine. */
+/** Stub Tool for AUTO nodes until real Tool execution + input binding lands (R4). */
 private class StubTool(private val cap: CapabilityId) : ExecutorProvider {
     override val id = ProviderId("stub.${cap.value}")
     override val kind = ExecutorKind.TOOL
     override val capabilities = setOf(Capability(cap))
     override suspend fun execute(strike: StrikeDecl, stock: Stock): StrikeResult {
-        delay(350)
+        delay(300)
         return StrikeResult(strike.id, output = "ok")
     }
+}
+
+/** MANUAL node: the human does the work; the step just records completion (its CONFIRM gate paused). */
+private class ManualProvider(private val cap: CapabilityId) : ExecutorProvider {
+    override val id = ProviderId("manual.${cap.value}")
+    override val kind = ExecutorKind.MASTER
+    override val capabilities = setOf(Capability(cap))
+    override suspend fun execute(strike: StrikeDecl, stock: Stock): StrikeResult =
+        StrikeResult(strike.id, output = "выполнено вручную")
 }
 
 /**
@@ -115,16 +133,38 @@ private class StubTool(private val cap: CapabilityId) : ExecutorProvider {
  * Every step goes through the real StrikeExecutor (policy + Master); executors are stubs for now.
  */
 @Composable
-fun RecipeRunnerScreen(recipe: SavedRecipe, onBack: () -> Unit) {
+fun RecipeRunnerScreen(
+    recipe: SavedRecipe,
+    appData: AppDataStore,
+    secrets: SecretStore,
+    skillStore: SkillStore,
+    onBack: () -> Unit,
+) {
     val nodes = recipe.nodes
     val byId = remember(recipe) { nodes.associateBy { it.id } }
     val gate = remember { UiMasterGate() }
     val scope = rememberCoroutineScope()
 
-    val executor = remember(recipe) {
-        val registry = DefaultCapabilityRegistry()
-        nodes.mapNotNull { StrikeCatalog.byId(it.typeId)?.capability }.distinct().forEach { registry.register(StubTool(it)) }
-        StrikeExecutor(StrikeResolver(registry), gate, PolicyEngine(DefaultPolicy))
+    // Shared across the run: one policy (quotas persist over the whole recipe) and one LLM client.
+    val policy = remember(recipe) { PolicyEngine(DefaultPolicy) }
+    val http = remember { HttpClient(CIO) }
+    DisposableEffect(Unit) { onDispose { http.close() } }
+    val llm = remember { LlmClient(http) }
+
+    /** Build the executor for one node, honouring its chosen mode (AUTO/MANUAL/LLM). */
+    suspend fun executorFor(node: RecipeNode, cap: CapabilityId, goal: String): StrikeExecutor {
+        val provider: ExecutorProvider = when (node.mode) {
+            StrikeMode.MANUAL -> ManualProvider(cap)
+            StrikeMode.LLM_LOCAL, StrikeMode.LLM_AGENT -> {
+                val project = appData.data.skillProject
+                val profile = LlmProfile(appData.data.llmBaseUrl.trimEnd('/'), appData.data.llmModel, secrets.get("llm.apikey"))
+                val loadSkill: (String) -> String? = { name -> skillStore.list(project).firstOrNull { it.manifest.name == name }?.body }
+                SmithExecutor(cap, llm, profile, skillStore.catalog(project), loadSkill, if (node.mode == StrikeMode.LLM_AGENT) "агент" else "локальная модель")
+            }
+            else -> StubTool(cap)
+        }
+        val registry = DefaultCapabilityRegistry().apply { register(provider) }
+        return StrikeExecutor(StrikeResolver(registry), gate, policy)
     }
 
     val states = remember(recipe) { mutableStateMapOf<String, RunState>() }
@@ -145,7 +185,7 @@ fun RecipeRunnerScreen(recipe: SavedRecipe, onBack: () -> Unit) {
     fun reset() {
         states.clear(); nodes.forEach { states[it.id] = RunState.PENDING }
         path.clear(); forkOptions = null; running = false; finished = false; autoTarget = null; pickTarget = false
-        executor.beginRun()
+        policy.beginRun()
         currentId = startId
         note = "готов к запуску"
     }
@@ -166,9 +206,11 @@ fun RecipeRunnerScreen(recipe: SavedRecipe, onBack: () -> Unit) {
             val type = StrikeCatalog.byId(node.typeId)
             if (type == null) { states[id] = RunState.FAILED; running = false; note = "нет типа страйка"; return }
             states[id] = RunState.RUNNING
-            note = "выполняется: ${type.name}"
+            note = "${node.mode.label}: ${type.name}"
             val danger = if (node.confirm || node.mode == StrikeMode.MANUAL) DangerLevel.CONFIRM else DangerLevel.SAFE
-            val outcome = executor.run(StrikeDecl(StrikeId(node.id), type.capability, danger), Stock.EMPTY)
+            val goal = "${type.name}: ${type.description}"
+            val executor = executorFor(node, type.capability, goal)
+            val outcome = executor.run(StrikeDecl(StrikeId(node.id), type.capability, danger, input = mapOf("goal" to goal)), Stock.EMPTY)
             when (outcome) {
                 is StrikeOutcome.Done -> {
                     success = outcome.result.status == StrikeStatus.OK
@@ -213,7 +255,7 @@ fun RecipeRunnerScreen(recipe: SavedRecipe, onBack: () -> Unit) {
                     path.drop(idx).forEach { states[it] = RunState.PENDING }
                     while (path.size > idx) path.removeAt(path.size - 1)
                     currentId = id; forkOptions = null; finished = false; running = false
-                    executor.beginRun(); note = "откат к узлу"
+                    policy.beginRun(); note = "откат к узлу"
                 }
             }
         }

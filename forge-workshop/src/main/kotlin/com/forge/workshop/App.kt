@@ -97,6 +97,9 @@ fun WorkshopApp(
                     )
                     selected == NavItem.RECIPES && runnerRecipe != null -> RecipeRunnerScreen(
                         recipe = runnerRecipe!!,
+                        appData = store,
+                        secrets = secrets,
+                        skillStore = skillStore,
                         onBack = { runnerRecipe = null },
                     )
                     selected == NavItem.RECIPES && builderOpen -> RecipeBuilderScreen(

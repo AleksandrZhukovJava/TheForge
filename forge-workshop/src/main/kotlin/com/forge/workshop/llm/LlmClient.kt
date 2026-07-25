@@ -72,6 +72,10 @@ class LlmClient(private val http: HttpClient) {
         return if (parsed.summary.isBlank() && parsed.description.isBlank()) current else parsed
     }
 
+    /** General single-turn call (system + user) — used by the Smith dispatch loop. */
+    suspend fun ask(system: String, user: String, profile: LlmProfile): String =
+        chat(listOf(ChatMessage("system", system), ChatMessage("user", user)), profile)
+
     /** Cheap connectivity check for the settings "Проверить" button. */
     suspend fun test(profile: LlmProfile): String {
         chat(listOf(ChatMessage("user", "Ответь одним словом: ок")), profile)
