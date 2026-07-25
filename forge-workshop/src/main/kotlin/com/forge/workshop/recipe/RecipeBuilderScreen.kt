@@ -287,7 +287,6 @@ private fun NodeCard(
     val title = when (node.typeId) { START_ID -> "СТАРТ"; END_ID -> "ФИНАЛ"; else -> type?.name ?: node.typeId }
     val accent = if (anchor) forgeColors.good else modeColor(node.mode, forgeColors)
     var hovered by remember { mutableStateOf(false) }
-    val showPorts = hovered && node.typeId != END_ID
 
     // Outer box gives room for the edge handles; positioned by board px.
     Box(
@@ -328,9 +327,10 @@ private fun NodeCard(
             }
         }
 
-        // The four fixed port handles (Miro-style), shown on hover.
-        if (showPorts) {
-            Port.entries.forEach { port -> PortHandle(port, density, onConnectStart, onConnectDrag, onConnectEnd) }
+        // The four fixed port handles (Miro-style). Always mounted so a drag can't be cancelled by
+        // the pointer leaving the node mid-pull; faded when idle, solid on hover.
+        if (node.typeId != END_ID) {
+            Port.entries.forEach { port -> PortHandle(port, density, hovered, onConnectStart, onConnectDrag, onConnectEnd) }
         }
     }
 }
@@ -340,6 +340,7 @@ private fun NodeCard(
 private fun PortHandle(
     port: Port,
     density: androidx.compose.ui.unit.Density,
+    hovered: Boolean,
     onConnectStart: (Port) -> Unit,
     onConnectDrag: (Offset) -> Unit,
     onConnectEnd: () -> Unit,
@@ -352,7 +353,7 @@ private fun PortHandle(
             .offset { IntOffset((cx - HANDLE / 2).roundToInt(), (cy - HANDLE / 2).roundToInt()) }
             .size(with(density) { HANDLE.toDp() })
             .clip(CircleShape)
-            .background(forgeColors.ember)
+            .background(if (hovered) forgeColors.ember else forgeColors.ember.copy(alpha = 0.5f))
             .pointerInput(port) {
                 detectDragGestures(
                     onDragStart = { onConnectStart(port) },
@@ -363,7 +364,7 @@ private fun PortHandle(
             },
         contentAlignment = Alignment.Center,
     ) {
-        Text("+", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        if (hovered) Text("+", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
     }
 }
 
