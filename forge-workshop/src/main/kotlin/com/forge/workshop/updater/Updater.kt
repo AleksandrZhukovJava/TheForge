@@ -13,9 +13,14 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
 
-/** Current app version — keep in sync with packageVersion in forge-workshop/build.gradle.kts. */
+/**
+ * Current app version — the single source is `appVersion` in forge-workshop/build.gradle.kts, which
+ * generates the `forge-version.txt` resource read here. Falls back to 0.0.0 if the resource is absent.
+ */
 object AppVersion {
-    const val CURRENT = "1.0.0"
+    val CURRENT: String = runCatching {
+        AppVersion::class.java.getResourceAsStream("/forge-version.txt")?.bufferedReader()?.use { it.readText().trim() }
+    }.getOrNull()?.takeIf { it.isNotBlank() } ?: "0.0.0"
 }
 
 /** The public repo whose GitHub Releases feed updates. */
