@@ -36,6 +36,7 @@ import com.forge.workshop.theme.forgeColors
 enum class NavItem(val label: String) {
     BENCH("Bench"),
     FOUNDRY("Foundry"),
+    RECIPES("Recipes"),
     SPARKS("Sparks"),
     HISTORY("History"),
     INTEGRATIONS("Integrations"),
@@ -172,6 +173,13 @@ private fun NavIcon(item: NavItem, tint: Color) {
                 val rr = CornerRadius(s * 0.13f)
                 drawRoundRect(tint, topLeft = Offset(s * 0.09f, s * 0.3f), size = Size(s * 0.46f, s * 0.4f), cornerRadius = rr, style = st)
                 drawRoundRect(tint, topLeft = Offset(s * 0.45f, s * 0.3f), size = Size(s * 0.46f, s * 0.4f), cornerRadius = rr, style = st)
+            }
+            NavItem.RECIPES -> {
+                // node graph: two nodes joined by an edge
+                val st = Stroke(width = s * 0.09f)
+                drawCircle(tint, radius = s * 0.13f, center = Offset(s * 0.24f, s * 0.28f), style = st)
+                drawCircle(tint, radius = s * 0.13f, center = Offset(s * 0.74f, s * 0.62f), style = st)
+                drawLine(tint, Offset(s * 0.34f, s * 0.36f), Offset(s * 0.64f, s * 0.54f), s * 0.08f, StrokeCap.Round)
             }
             NavItem.SPARKS -> {
                 // a four-point spark (star) struck off the anvil

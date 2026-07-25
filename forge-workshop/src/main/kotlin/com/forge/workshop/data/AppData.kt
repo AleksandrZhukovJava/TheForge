@@ -3,6 +3,7 @@ package com.forge.workshop.data
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.forge.workshop.recipe.SavedRecipe
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -81,6 +82,10 @@ data class AppData(
     val notifications: List<NotificationEvent> = emptyList(),
     /** Last-seen issue key → status, for detecting new/changed on the next poll. */
     val issueSnapshot: Map<String, String> = emptyMap(),
+    /** User-authored recipes (graph + layout), built on the board. */
+    val recipes: List<SavedRecipe> = emptyList(),
+    /** Recipe bound to a task, keyed by issue key / local task id. */
+    val taskRecipe: Map<String, String> = emptyMap(),
 )
 
 const val DEFAULT_PROMPT_TEMPLATE: String =
@@ -196,4 +201,28 @@ class AppDataStore(private val file: Path) {
     fun markNotificationsRead() = update { d -> d.copy(notifications = d.notifications.map { it.copy(read = true) }) }
 
     fun unreadCount(): Int = data.notifications.count { !it.read }
+
+    // --- Recipes ---
+
+    /** Insert or replace a recipe by id (upsert). */
+    fun saveRecipe(recipe: SavedRecipe) = update { d ->
+        val others = d.recipes.filterNot { it.id == recipe.id }
+        d.copy(recipes = others + recipe)
+    }
+
+    fun deleteRecipe(id: String) = update { d ->
+        d.copy(
+            recipes = d.recipes.filterNot { it.id == id },
+            taskRecipe = d.taskRecipe.filterValues { it != id },
+        )
+    }
+
+    fun recipe(id: String): SavedRecipe? = data.recipes.firstOrNull { it.id == id }
+
+    /** Bind (or clear, with null) the recipe used for a task. */
+    fun setTaskRecipe(taskKey: String, recipeId: String?) = update { d ->
+        d.copy(taskRecipe = if (recipeId == null) d.taskRecipe - taskKey else d.taskRecipe + (taskKey to recipeId))
+    }
+
+    fun taskRecipe(taskKey: String): SavedRecipe? = data.taskRecipe[taskKey]?.let { id -> data.recipes.firstOrNull { it.id == id } }
 }

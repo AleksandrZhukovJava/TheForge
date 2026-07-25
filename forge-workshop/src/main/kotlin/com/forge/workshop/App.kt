@@ -31,6 +31,9 @@ import com.forge.workshop.history.HistoryStore
 import com.forge.workshop.integrations.IntegrationsScreen
 import com.forge.workshop.nav.NavItem
 import com.forge.workshop.nav.NavRail
+import com.forge.workshop.recipe.RecipeBuilderScreen
+import com.forge.workshop.recipe.RecipeListScreen
+import com.forge.workshop.recipe.SavedRecipe
 import com.forge.workshop.runner.RunnerScreen
 import com.forge.workshop.sparks.SparksScreen
 import com.forge.workshop.theme.forgeColors
@@ -48,6 +51,8 @@ fun WorkshopApp(
 ) {
     var selected by remember { mutableStateOf(NavItem.BENCH) }
     var running by remember { mutableStateOf<SkillSpec?>(null) }
+    var builderOpen by remember { mutableStateOf(false) }
+    var builderInitial by remember { mutableStateOf<SavedRecipe?>(null) }
     val history = remember { HistoryStore() }
 
     // Fetch fresh data whenever the Bench is opened (background polling only runs while the
@@ -59,7 +64,7 @@ fun WorkshopApp(
 
     Surface(color = forgeColors.ground, modifier = Modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxSize()) {
-            NavRail(selected, onSelect = { selected = it; running = null }, unread = store.unreadCount())
+            NavRail(selected, onSelect = { selected = it; running = null; builderOpen = false }, unread = store.unreadCount())
             Box(Modifier.width(1.dp).fillMaxHeight().background(forgeColors.border))
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 val current = running
@@ -79,6 +84,16 @@ fun WorkshopApp(
                         skill = current,
                         onBack = { running = null },
                         onFinished = { ok -> history.record(current.title, ok) },
+                    )
+                    selected == NavItem.RECIPES && builderOpen -> RecipeBuilderScreen(
+                        store = store,
+                        initial = builderInitial,
+                        onBack = { builderOpen = false },
+                    )
+                    selected == NavItem.RECIPES -> RecipeListScreen(
+                        store = store,
+                        onNew = { builderInitial = null; builderOpen = true },
+                        onEdit = { builderInitial = it; builderOpen = true },
                     )
                     selected == NavItem.BENCH -> BenchScreen(dashboardState, store, onRefresh)
                     selected == NavItem.FOUNDRY -> FoundryScreen(onRun = { running = it })
