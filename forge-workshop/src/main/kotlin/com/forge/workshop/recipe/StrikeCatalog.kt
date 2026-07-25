@@ -17,6 +17,9 @@ enum class StrikeMode(val label: String, val kind: ExecutorKind) {
     LLM_AGENT("Агент", ExecutorKind.SMITH),
 }
 
+/** A declared input of a Strike type — drives the per-node input form and the real Tool call. */
+data class InputSpec(val key: String, val label: String, val required: Boolean = false)
+
 /** A ready-made action we ship — a building block for recipes. */
 data class StrikeType(
     val id: String,
@@ -25,6 +28,7 @@ data class StrikeType(
     val capability: CapabilityId,
     val allowedModes: List<StrikeMode>,
     val defaultDanger: DangerLevel = DangerLevel.SAFE,
+    val inputs: List<InputSpec> = emptyList(),
 )
 
 /**
@@ -37,11 +41,24 @@ object StrikeCatalog {
             "jira.create-issue", "Создать задачу Jira",
             "Создаёт задачу в Jira. Авто — по полям; локальная LLM — формулирует по описанию (+ скилы).",
             CapabilityId("jira.create-issue"), listOf(StrikeMode.AUTO, StrikeMode.LLM_LOCAL), DangerLevel.CONFIRM,
+            inputs = listOf(
+                InputSpec("project", "Проект (key)", required = true),
+                InputSpec("summary", "Заголовок", required = true),
+                InputSpec("issueType", "Тип (по умолч. Task)"),
+                InputSpec("description", "Описание"),
+            ),
         ),
         StrikeType(
             "gitlab.open-mr", "Открыть MR",
             "Открывает merge request в GitLab. Merge/force-push запрещены сводом правил.",
             CapabilityId("gitlab.open-merge-request"), listOf(StrikeMode.AUTO), DangerLevel.CONFIRM,
+            inputs = listOf(
+                InputSpec("projectId", "Проект (id или path)", required = true),
+                InputSpec("sourceBranch", "Исходная ветка", required = true),
+                InputSpec("targetBranch", "Целевая ветка", required = true),
+                InputSpec("title", "Заголовок", required = true),
+                InputSpec("description", "Описание"),
+            ),
         ),
         StrikeType(
             "code.write", "Написать код",

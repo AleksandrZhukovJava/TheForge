@@ -216,6 +216,7 @@ fun RecipeBuilderScreen(
                     outgoing = links.filter { it.from == node?.id },
                     onMode = { m -> node?.let { n -> updateNode(n.id) { it.copy(mode = m) } } },
                     onConfirm = { c -> node?.let { n -> updateNode(n.id) { it.copy(confirm = c) } } },
+                    onInput = { k, v -> node?.let { n -> updateNode(n.id) { it.copy(inputs = it.inputs + (k to v)) } } },
                     onLinkCond = { link, cond -> val i = links.indexOf(link); if (i >= 0) links[i] = link.copy(cond = cond) },
                     onLinkDelete = { link -> links.remove(link) },
                     onDelete = {
@@ -374,6 +375,7 @@ private fun Inspector(
     outgoing: List<RecipeLink>,
     onMode: (StrikeMode) -> Unit,
     onConfirm: (Boolean) -> Unit,
+    onInput: (String, String) -> Unit,
     onLinkCond: (RecipeLink, EdgeCond) -> Unit,
     onLinkDelete: (RecipeLink) -> Unit,
     onDelete: () -> Unit,
@@ -395,6 +397,20 @@ private fun Inspector(
             type.allowedModes.forEach { m -> Toggle(m.label, node.mode == m, modeColor(m, forgeColors)) { onMode(m) } }
         }
         Toggle(if (node.confirm) "☑ Требует подтверждения" else "☐ Требует подтверждения", node.confirm, forgeColors.warn) { onConfirm(!node.confirm) }
+
+        if (type.inputs.isNotEmpty() && node.mode == StrikeMode.AUTO) {
+            Spacer(Modifier.height(4.dp))
+            Text("Входы (для авто-режима)", color = forgeColors.inkFaint, fontSize = 11.sp)
+            type.inputs.forEach { spec ->
+                OutlinedTextField(
+                    value = node.inputs[spec.key] ?: "",
+                    onValueChange = { onInput(spec.key, it) },
+                    label = { Text(spec.label + if (spec.required) " *" else "", fontSize = 11.sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
     }
 
     if (outgoing.isNotEmpty()) {

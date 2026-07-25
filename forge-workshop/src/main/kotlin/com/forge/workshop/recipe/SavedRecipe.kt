@@ -22,6 +22,8 @@ data class RecipeNode(
     val confirm: Boolean = false,
     val x: Float = 0f,
     val y: Float = 0f,
+    /** Static per-node inputs (project, summary, …) that feed the real Tool call. */
+    val inputs: Map<String, String> = emptyMap(),
 )
 
 /** A thread between two nodes on the board. */

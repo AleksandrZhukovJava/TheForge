@@ -161,7 +161,8 @@ fun RecipeRunnerScreen(
                 val loadSkill: (String) -> String? = { name -> skillStore.list(project).firstOrNull { it.manifest.name == name }?.body }
                 SmithExecutor(cap, llm, profile, skillStore.catalog(project), loadSkill, if (node.mode == StrikeMode.LLM_AGENT) "агент" else "локальная модель")
             }
-            else -> StubTool(cap)
+            // AUTO — the real Tool if the integration is configured, else a stub.
+            else -> AutoTools.providerFor(cap, http, secrets) ?: StubTool(cap)
         }
         val registry = DefaultCapabilityRegistry().apply { register(provider) }
         return StrikeExecutor(StrikeResolver(registry), gate, policy)
@@ -210,7 +211,8 @@ fun RecipeRunnerScreen(
             val danger = if (node.confirm || node.mode == StrikeMode.MANUAL) DangerLevel.CONFIRM else DangerLevel.SAFE
             val goal = "${type.name}: ${type.description}"
             val executor = executorFor(node, type.capability, goal)
-            val outcome = executor.run(StrikeDecl(StrikeId(node.id), type.capability, danger, input = mapOf("goal" to goal)), Stock.EMPTY)
+            val input: Map<String, Any?> = node.inputs + ("goal" to goal)
+            val outcome = executor.run(StrikeDecl(StrikeId(node.id), type.capability, danger, input = input), Stock.EMPTY)
             when (outcome) {
                 is StrikeOutcome.Done -> {
                     success = outcome.result.status == StrikeStatus.OK
