@@ -53,6 +53,15 @@ compose.desktop {
             targetFormats(TargetFormat.Msi, TargetFormat.Dmg)
             packageName = "TheForge"
             packageVersion = appVersion
+            // Stable UpgradeCode: without it jpackage picks a random one each build, so every MSI
+            // installs as a SEPARATE app instead of upgrading in place. Must never change.
+            windows {
+                upgradeUuid = "b7e2c4a1-9f3d-4c8e-a5b6-1d2e3f4a5b6c"
+                menuGroup = "The Forge"
+                shortcut = true
+                menu = true
+                perUserInstall = true
+            }
         }
     }
 }
