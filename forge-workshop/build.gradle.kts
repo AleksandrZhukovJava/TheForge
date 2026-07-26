@@ -9,7 +9,7 @@ plugins {
 
 // Single source of truth for the app version — used for the installer AND baked into a resource
 // the in-app updater reads (AppVersion.CURRENT). Bump this one line to cut a new release.
-val appVersion = "1.0.2"
+val appVersion = "1.0.3"
 
 kotlin {
     jvmToolchain(17)
@@ -58,7 +58,7 @@ compose.desktop {
             windows {
                 upgradeUuid = "b7e2c4a1-9f3d-4c8e-a5b6-1d2e3f4a5b6c"
                 menuGroup = "The Forge"
-                shortcut = true
+                shortcut = false // no desktop shortcut — Start Menu only, so updates don't scatter icons
                 menu = true
                 perUserInstall = true
             }
