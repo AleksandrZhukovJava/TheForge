@@ -41,7 +41,7 @@ fun defaultBlocks(): List<TaskBlock> = listOf(
     TaskBlock("local", "Свои", listOf("Своя задача")),
 )
 
-enum class NType { NEW, STATUS }
+enum class NType { NEW, STATUS, UPDATE }
 
 /** A detected task event, shown in Sparks. */
 @Serializable
@@ -88,6 +88,8 @@ data class AppData(
     val taskRecipe: Map<String, String> = emptyMap(),
     /** Active skills project (folder under skills/). */
     val skillProject: String = "default",
+    /** Last app version we already announced in Sparks, so we don't repeat it every launch. */
+    val notifiedUpdateVersion: String = "",
 )
 
 const val DEFAULT_PROMPT_TEMPLATE: String =
@@ -203,6 +205,22 @@ class AppDataStore(private val file: Path) {
     fun markNotificationsRead() = update { d -> d.copy(notifications = d.notifications.map { it.copy(read = true) }) }
 
     fun unreadCount(): Int = data.notifications.count { !it.read }
+
+    /** Announce a new app version as a Spark — once per version (deduped by [AppData.notifiedUpdateVersion]). */
+    fun recordUpdate(version: String, notes: String) = update { d ->
+        if (version == d.notifiedUpdateVersion) return@update d
+        val text = notes.lineSequence().firstOrNull { it.isNotBlank() }?.trim()?.take(120)
+            ?: "Откройте Настройки → Приложение, чтобы обновить."
+        val event = NotificationEvent(
+            id = UUID.randomUUID().toString(),
+            type = NType.UPDATE,
+            issueKey = version,
+            summary = "Вышла версия $version",
+            text = text,
+            at = System.currentTimeMillis(),
+        )
+        d.copy(notifications = (listOf(event) + d.notifications).take(100), notifiedUpdateVersion = version)
+    }
 
     // --- Recipes ---
 

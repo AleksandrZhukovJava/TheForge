@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,6 +49,7 @@ fun NavRail(
     onSelect: (NavItem) -> Unit,
     unread: Int = 0,
     settingsActive: Boolean = false,
+    updateAvailable: Boolean = false,
     onSettings: () -> Unit = {},
 ) {
     Column(
@@ -71,7 +73,7 @@ fun NavRail(
             NavRow(item, item == selected, if (item == NavItem.SPARKS) unread else 0) { onSelect(item) }
         }
         Spacer(Modifier.weight(1f))
-        SettingsRow(settingsActive, onSettings)
+        SettingsRow(settingsActive, updateAvailable, onSettings)
         Row(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -84,7 +86,7 @@ fun NavRail(
 }
 
 @Composable
-private fun SettingsRow(active: Boolean, onClick: () -> Unit) {
+private fun SettingsRow(active: Boolean, updateAvailable: Boolean, onClick: () -> Unit) {
     val fg = if (active) forgeColors.ember else forgeColors.inkMuted
     val bg = if (active) forgeColors.ember.copy(alpha = 0.12f) else Color.Transparent
     Row(
@@ -99,6 +101,10 @@ private fun SettingsRow(active: Boolean, onClick: () -> Unit) {
         GearIcon(fg)
         Spacer(Modifier.width(11.dp))
         Text("Настройки", color = fg, fontSize = 14.sp, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium)
+        if (updateAvailable) {
+            Spacer(Modifier.width(8.dp))
+            Box(Modifier.size(7.dp).clip(CircleShape).background(forgeColors.ember))
+        }
     }
 }
 

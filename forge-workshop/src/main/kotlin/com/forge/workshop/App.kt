@@ -53,6 +53,7 @@ import com.forge.workshop.skills.SkillStore
 import com.forge.workshop.skills.SkillsScreen
 import com.forge.workshop.sparks.SparksScreen
 import com.forge.workshop.theme.forgeColors
+import com.forge.workshop.updater.AppVersion
 import com.forge.workshop.updater.UpdateInfo
 import com.forge.workshop.updater.Updater
 import kotlinx.coroutines.launch
@@ -72,7 +73,34 @@ fun WorkshopApp(
     val updateScope = rememberCoroutineScope()
     var update by remember { mutableStateOf<UpdateInfo?>(null) }
     var updateStatus by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) { update = Updater.checkForUpdate() }
+    // Startup check: announce a newer release as a Spark (deduped) and light the gear dot.
+    LaunchedEffect(Unit) {
+        Updater.checkForUpdate()?.let { info ->
+            update = info
+            store.recordUpdate(info.version, info.notes)
+            updateStatus = "доступна ${info.version}"
+        }
+    }
+    fun checkUpdate() = updateScope.launch {
+        updateStatus = "проверка…"
+        val info = Updater.checkForUpdate()
+        update = info
+        updateStatus = if (info != null) {
+            store.recordUpdate(info.version, info.notes); "доступна ${info.version}"
+        } else "актуальная версия"
+    }
+    fun installUpdate() = updateScope.launch {
+        val info = update ?: return@launch
+        updateStatus = "скачивание…"
+        try {
+            val file = Updater.download(info)
+            updateStatus = "запуск установщика…"
+            Updater.launchInstaller(file)
+            onQuit()
+        } catch (e: Exception) {
+            updateStatus = "ошибка: ${e.message}"
+        }
+    }
     var selected by remember { mutableStateOf(NavItem.BENCH) }
     var running by remember { mutableStateOf<SkillSpec?>(null) }
     var builderOpen by remember { mutableStateOf(false) }
@@ -82,6 +110,7 @@ fun WorkshopApp(
     var skillEditorOpen by remember { mutableStateOf(false) }
     var skillEditorInitial by remember { mutableStateOf<Skill?>(null) }
     var settingsOpen by remember { mutableStateOf(false) }
+    var settingsTab by remember { mutableStateOf(0) }
     val history = remember { HistoryStore() }
 
     // Fetch fresh data whenever the Bench is opened (background polling only runs while the
@@ -92,40 +121,32 @@ fun WorkshopApp(
     }
 
     Surface(color = forgeColors.ground, modifier = Modifier.fillMaxSize()) {
-      Column(Modifier.fillMaxSize()) {
-        update?.let { info ->
-            UpdateBar(
-                info = info,
-                status = updateStatus,
-                onUpdate = {
-                    updateScope.launch {
-                        updateStatus = "скачивание…"
-                        try {
-                            val file = Updater.download(info)
-                            updateStatus = "запуск установщика…"
-                            Updater.launchInstaller(file)
-                            onQuit()
-                        } catch (e: Exception) {
-                            updateStatus = "ошибка: ${e.message}"
-                        }
-                    }
-                },
-                onDismiss = { update = null },
-            )
-        }
-        Row(modifier = Modifier.fillMaxWidth().weight(1f)) {
+        Row(modifier = Modifier.fillMaxSize()) {
             NavRail(
                 selected,
                 onSelect = { selected = it; running = null; builderOpen = false; runnerRecipe = null; skillEditorOpen = false; settingsOpen = false },
                 unread = store.unreadCount(),
                 settingsActive = settingsOpen,
-                onSettings = { settingsOpen = true },
+                updateAvailable = update != null,
+                onSettings = { settingsOpen = true; settingsTab = 0 },
             )
             Box(Modifier.width(1.dp).fillMaxHeight().background(forgeColors.border))
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 val current = running
                 when {
-                    settingsOpen -> SettingsScreen(secrets, refreshMinutes, onIntervalChange, onSaved, store)
+                    settingsOpen -> SettingsScreen(
+                        secrets = secrets,
+                        refreshMinutes = refreshMinutes,
+                        onIntervalChange = onIntervalChange,
+                        onSaved = onSaved,
+                        store = store,
+                        currentVersion = AppVersion.CURRENT,
+                        update = update,
+                        updateStatus = updateStatus,
+                        onCheckUpdate = { checkUpdate() },
+                        onInstallUpdate = { installUpdate() },
+                        initialTab = settingsTab,
+                    )
                     current != null && current.title == "Create Jira Story" -> CreateIssueScreen(
                         secrets = secrets,
                         store = store,
@@ -175,13 +196,12 @@ fun WorkshopApp(
                         onNew = { skillEditorInitial = null; skillEditorOpen = true },
                         onEdit = { skillEditorInitial = it; skillEditorOpen = true },
                     )
-                    selected == NavItem.SPARKS -> SparksScreen(store)
+                    selected == NavItem.SPARKS -> SparksScreen(store, onOpenUpdate = { settingsOpen = true; settingsTab = 3 })
                     selected == NavItem.HISTORY -> HistoryScreen(history)
                     else -> {}
                 }
             }
         }
-      }
     }
 }
 
@@ -189,28 +209,5 @@ fun WorkshopApp(
 private fun Placeholder(text: String) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(text, color = forgeColors.inkFaint, fontSize = 15.sp)
-    }
-}
-
-/** Slim ember bar shown when a newer GitHub Release is available. */
-@Composable
-private fun UpdateBar(info: UpdateInfo, status: String?, onUpdate: () -> Unit, onDismiss: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().background(forgeColors.ember.copy(alpha = 0.16f)).padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text("Доступна версия ${info.version}", color = forgeColors.ember, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.width(12.dp))
-        if (status != null) {
-            Text(status, color = forgeColors.inkMuted, fontSize = 12.sp)
-        }
-        Spacer(Modifier.weight(1f))
-        if (status == null) {
-            Box(
-                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(forgeColors.ember).clickable { onUpdate() }.padding(horizontal = 14.dp, vertical = 7.dp),
-            ) { Text("Обновить", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
-            Spacer(Modifier.width(10.dp))
-            Text("позже", color = forgeColors.inkMuted, fontSize = 12.sp, modifier = Modifier.clickable { onDismiss() }.padding(6.dp))
-        }
     }
 }

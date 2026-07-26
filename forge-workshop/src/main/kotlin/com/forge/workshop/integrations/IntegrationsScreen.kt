@@ -43,13 +43,14 @@ import com.forge.workshop.data.TaskBlock
 import com.forge.workshop.llm.LlmClient
 import com.forge.workshop.llm.LlmProfile
 import com.forge.workshop.theme.forgeColors
+import com.forge.workshop.updater.UpdateInfo
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import kotlinx.coroutines.launch
 
 private data class Field(val label: String, val key: String, val secret: Boolean = false)
 
-private val SETTINGS_TABS = listOf("Интеграции", "Обновление", "Блоки", "ИИ")
+private val SETTINGS_TABS = listOf("Интеграции", "Блоки", "ИИ", "Приложение")
 
 /** General settings, tabbed like the old widget. Opened via the gear in the nav rail. */
 @Composable
@@ -59,8 +60,14 @@ fun SettingsScreen(
     onIntervalChange: (Int) -> Unit,
     onSaved: () -> Unit,
     store: AppDataStore,
+    currentVersion: String,
+    update: UpdateInfo?,
+    updateStatus: String?,
+    onCheckUpdate: () -> Unit,
+    onInstallUpdate: () -> Unit,
+    initialTab: Int = 0,
 ) {
-    var tab by remember { mutableStateOf(0) }
+    var tab by remember(initialTab) { mutableStateOf(initialTab) }
     Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
         Text("Настройки", color = forgeColors.ink, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
         Spacer(Modifier.height(4.dp))
@@ -97,10 +104,12 @@ fun SettingsScreen(
                         secrets = secrets,
                         onSaved = onSaved,
                     )
+                    Spacer(Modifier.height(12.dp))
+                    RefreshCard(refreshMinutes, onIntervalChange)
                 }
-                1 -> RefreshCard(refreshMinutes, onIntervalChange)
-                2 -> BlocksCard(store)
-                3 -> AiCard(secrets, store)
+                1 -> BlocksCard(store)
+                2 -> AiCard(secrets, store)
+                3 -> AppTab(currentVersion, update, updateStatus, onCheckUpdate, onInstallUpdate)
             }
         }
     }
@@ -116,6 +125,46 @@ private fun TabChip(title: String, selected: Boolean, onClick: () -> Unit) {
             .padding(horizontal = 13.dp, vertical = 8.dp),
     ) {
         Text(title, color = if (selected) forgeColors.ember else forgeColors.inkMuted, fontSize = 13.sp, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun AppTab(currentVersion: String, update: UpdateInfo?, status: String?, onCheck: () -> Unit, onInstall: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(forgeColors.surface2)
+            .border(1.dp, forgeColors.border, RoundedCornerShape(12.dp)).padding(18.dp),
+    ) {
+        Text("Приложение", color = forgeColors.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Текущая версия:", color = forgeColors.inkMuted, fontSize = 13.sp)
+            Spacer(Modifier.width(8.dp))
+            Text(currentVersion, color = forgeColors.ink, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
+        }
+        Spacer(Modifier.height(14.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SaveButton("Проверить обновления") { onCheck() }
+            if (update != null) {
+                Spacer(Modifier.width(10.dp))
+                SaveButton("Обновить до ${update.version}") { onInstall() }
+            }
+            if (status != null) {
+                Spacer(Modifier.width(12.dp))
+                val col = if (status.startsWith("ошибка")) forgeColors.crit else if (update != null) forgeColors.ember else forgeColors.good
+                Text(status, color = col, fontSize = 12.sp)
+            }
+        }
+        if (update != null && !update.notes.isBlank()) {
+            Spacer(Modifier.height(12.dp))
+            Text("Что нового:", color = forgeColors.inkFaint, fontSize = 11.sp)
+            Spacer(Modifier.height(4.dp))
+            Text(update.notes.trim().take(600), color = forgeColors.inkMuted, fontSize = 12.sp)
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "Обновления берутся из GitHub Releases. При выходе новой версии появится значок на «Настройках» и запись в Sparks.",
+            color = forgeColors.inkFaint, fontSize = 11.sp,
+        )
     }
 }
 

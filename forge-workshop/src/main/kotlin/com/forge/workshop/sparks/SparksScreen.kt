@@ -38,7 +38,7 @@ import com.forge.workshop.theme.forgeColors
  * Reading is a local overlay; nothing is written back to Jira.
  */
 @Composable
-fun SparksScreen(store: AppDataStore) {
+fun SparksScreen(store: AppDataStore, onOpenUpdate: () -> Unit = {}) {
     val events = store.data.notifications
     val unread = events.count { !it.read }
 
@@ -80,17 +80,23 @@ fun SparksScreen(store: AppDataStore) {
                 modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                events.forEach { SparkRow(it) }
+                events.forEach { SparkRow(it, onOpenUpdate) }
             }
         }
     }
 }
 
 @Composable
-private fun SparkRow(event: NotificationEvent) {
+private fun SparkRow(event: NotificationEvent, onOpenUpdate: () -> Unit) {
     val accent: Color = when (event.type) {
         NType.NEW -> forgeColors.ember
         NType.STATUS -> forgeColors.tool
+        NType.UPDATE -> forgeColors.emberHot
+    }
+    val typeLabel = when (event.type) {
+        NType.NEW -> "НОВАЯ"
+        NType.STATUS -> "СТАТУС"
+        NType.UPDATE -> "ОБНОВЛЕНИЕ"
     }
     Row(
         modifier = Modifier
@@ -98,6 +104,7 @@ private fun SparkRow(event: NotificationEvent) {
             .clip(RoundedCornerShape(10.dp))
             .background(forgeColors.surface2)
             .border(1.dp, if (event.read) forgeColors.border else forgeColors.borderStrong, RoundedCornerShape(10.dp))
+            .then(if (event.type == NType.UPDATE) Modifier.clickable { onOpenUpdate() } else Modifier)
             .padding(horizontal = 15.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -114,7 +121,7 @@ private fun SparkRow(event: NotificationEvent) {
                 Text(event.issueKey, color = accent, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    if (event.type == NType.NEW) "НОВАЯ" else "СТАТУС",
+                    typeLabel,
                     color = forgeColors.inkFaint,
                     fontSize = 10.sp,
                     fontFamily = FontFamily.Monospace,
