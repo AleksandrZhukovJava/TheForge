@@ -24,6 +24,7 @@ import com.forge.workshop.dashboard.DashboardHolder
 import com.forge.workshop.dashboard.DashboardState
 import com.forge.workshop.dashboard.LiveDashboardRepository
 import java.util.UUID
+import com.forge.workshop.splash.SplashWindow
 import com.forge.workshop.theme.ForgeTheme
 import com.forge.workshop.tray.SparkPainter
 import com.forge.workshop.widget.TrayPopover
@@ -41,6 +42,10 @@ fun main() = application {
     var refreshMinutes by remember { mutableStateOf(3) }
     var widgetVisible by remember { mutableStateOf(true) }
     var popoverVisible by remember { mutableStateOf(false) }
+
+    // Branded startup splash — shown briefly while the app wires up, then the real windows appear.
+    var showSplash by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) { delay(1600); showSplash = false }
 
     // Refresh the dashboard, then diff the Jira issues against the last snapshot to emit Sparks.
     suspend fun refreshAndDetect() {
@@ -70,70 +75,74 @@ fun main() = application {
         },
     )
 
-    // Main Workshop window
-    val mainState = rememberWindowState(size = DpSize(1060.dp, 700.dp))
-    Window(onCloseRequest = ::exitApplication, state = mainState, title = "The Forge — Workshop") {
-        ForgeTheme {
-            WorkshopApp(
-                secrets = secrets,
-                refreshMinutes = refreshMinutes,
-                onIntervalChange = { refreshMinutes = it },
-                onSaved = { scope.launch { refreshAndDetect() } },
-                dashboardState = dashboard.state,
-                onRefresh = { scope.launch { refreshAndDetect() } },
-                store = appData,
-                onQuit = ::exitApplication,
-            )
-        }
-    }
-
-    // Standalone Widget window (compact, transparent, hover-expands, draggable)
-    if (widgetVisible) {
-        val widgetState = rememberWindowState(
-            size = DpSize(300.dp, 440.dp),
-            position = WindowPosition(Alignment.TopEnd),
-        )
-        Window(
-            onCloseRequest = { widgetVisible = false },
-            state = widgetState,
-            title = "The Forge — Widget",
-            undecorated = true,
-            transparent = true,
-            resizable = false,
-            alwaysOnTop = true,
-        ) {
-            val awtWindow = window
+    if (showSplash) {
+        SplashWindow()
+    } else {
+        // Main Workshop window
+        val mainState = rememberWindowState(size = DpSize(1060.dp, 700.dp))
+        Window(onCloseRequest = ::exitApplication, state = mainState, title = "The Forge — Workshop") {
             ForgeTheme {
-                WidgetPanel(
-                    state = dashboard.state,
+                WorkshopApp(
+                    secrets = secrets,
+                    refreshMinutes = refreshMinutes,
+                    onIntervalChange = { refreshMinutes = it },
+                    onSaved = { scope.launch { refreshAndDetect() } },
+                    dashboardState = dashboard.state,
                     onRefresh = { scope.launch { refreshAndDetect() } },
-                    onMoveBy = { dx, dy -> awtWindow.setLocation(awtWindow.x + dx, awtWindow.y + dy) },
+                    store = appData,
+                    onQuit = ::exitApplication,
                 )
             }
         }
-    }
 
-    // Tray popover window
-    if (popoverVisible) {
-        val popoverState = rememberWindowState(
-            size = DpSize(340.dp, 360.dp),
-            position = WindowPosition(Alignment.BottomEnd),
-        )
-        Window(
-            onCloseRequest = { popoverVisible = false },
-            state = popoverState,
-            title = "The Forge",
-            undecorated = true,
-            transparent = true,
-            resizable = false,
-            alwaysOnTop = true,
-        ) {
-            ForgeTheme {
-                TrayPopover(
-                    state = dashboard.state,
-                    onRun = { popoverVisible = false },
-                    onRefresh = { scope.launch { refreshAndDetect() } },
-                )
+        // Standalone Widget window (compact, transparent, hover-expands, draggable)
+        if (widgetVisible) {
+            val widgetState = rememberWindowState(
+                size = DpSize(300.dp, 440.dp),
+                position = WindowPosition(Alignment.TopEnd),
+            )
+            Window(
+                onCloseRequest = { widgetVisible = false },
+                state = widgetState,
+                title = "The Forge — Widget",
+                undecorated = true,
+                transparent = true,
+                resizable = false,
+                alwaysOnTop = true,
+            ) {
+                val awtWindow = window
+                ForgeTheme {
+                    WidgetPanel(
+                        state = dashboard.state,
+                        onRefresh = { scope.launch { refreshAndDetect() } },
+                        onMoveBy = { dx, dy -> awtWindow.setLocation(awtWindow.x + dx, awtWindow.y + dy) },
+                    )
+                }
+            }
+        }
+
+        // Tray popover window
+        if (popoverVisible) {
+            val popoverState = rememberWindowState(
+                size = DpSize(340.dp, 360.dp),
+                position = WindowPosition(Alignment.BottomEnd),
+            )
+            Window(
+                onCloseRequest = { popoverVisible = false },
+                state = popoverState,
+                title = "The Forge",
+                undecorated = true,
+                transparent = true,
+                resizable = false,
+                alwaysOnTop = true,
+            ) {
+                ForgeTheme {
+                    TrayPopover(
+                        state = dashboard.state,
+                        onRun = { popoverVisible = false },
+                        onRefresh = { scope.launch { refreshAndDetect() } },
+                    )
+                }
             }
         }
     }
