@@ -88,13 +88,17 @@ object Updater {
         }
     }
 
-    /** Launch the downloaded installer. Caller should quit the app afterwards. */
+    /**
+     * Launch the downloaded installer quietly — `/qb` shows only a progress bar (no wizard, no
+     * install-path page), so a major upgrade just replaces the app in place. Caller quits the app
+     * afterwards so the running exe isn't locked.
+     */
     fun launchInstaller(file: File) {
         try {
             if (file.extension.equals("msi", true)) {
-                ProcessBuilder("msiexec", "/i", file.absolutePath).start()
+                ProcessBuilder("msiexec", "/i", file.absolutePath, "/qb", "/norestart").start()
             } else {
-                ProcessBuilder(file.absolutePath).start()
+                ProcessBuilder(file.absolutePath, "/SILENT").start()
             }
         } catch (_: Exception) {
             runCatching { java.awt.Desktop.getDesktop().open(file) }

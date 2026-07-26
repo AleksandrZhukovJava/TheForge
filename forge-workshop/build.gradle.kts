@@ -9,7 +9,7 @@ plugins {
 
 // Single source of truth for the app version — used for the installer AND baked into a resource
 // the in-app updater reads (AppVersion.CURRENT). Bump this one line to cut a new release.
-val appVersion = "1.0.3"
+val appVersion = "1.0.4"
 
 kotlin {
     jvmToolchain(17)
