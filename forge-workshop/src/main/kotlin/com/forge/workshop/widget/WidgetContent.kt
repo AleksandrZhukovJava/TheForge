@@ -38,6 +38,7 @@ import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.forge.workshop.dashboard.DashboardData
@@ -212,9 +213,14 @@ private fun WidgetRow(row: WRow) {
         ) {
             Text(row.code, color = forgeColors.inkMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
             Spacer(Modifier.width(8.dp))
-            Text(row.text, color = forgeColors.ink, fontSize = 12.sp, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
-            Spacer(Modifier.weight(1f))
-            StatusPill(row.status)
+            Text(
+                row.text,
+                color = forgeColors.ink,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }
