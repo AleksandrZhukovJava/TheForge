@@ -116,6 +116,17 @@ fun main() = application {
                 alwaysOnTop = true,
             ) {
                 val awtWindow = window
+                // Collapse by polling the cursor vs the window bounds — reliable even when the mouse
+                // leaves past a screen edge (widget sits in the top-right corner), where the Exit
+                // pointer event isn't delivered.
+                LaunchedEffect(widgetExpanded) {
+                    if (!widgetExpanded) return@LaunchedEffect
+                    while (true) {
+                        delay(160)
+                        val p = java.awt.MouseInfo.getPointerInfo()?.location ?: continue
+                        if (!awtWindow.bounds.contains(p)) { widgetExpanded = false; break }
+                    }
+                }
                 ForgeTheme {
                     WidgetPanel(
                         state = dashboard.state,
