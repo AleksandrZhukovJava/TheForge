@@ -121,13 +121,22 @@ object Updater {
         runCatching { ProcessHandle.current().info().command().orElse(null) }.getOrNull()
             ?.takeIf { it.endsWith("TheForge.exe", ignoreCase = true) }
 
-    /** VBScript run windowless (via wscript): wait for the app to close, install silently, relaunch. */
+    /**
+     * VBScript run windowless (via wscript): poll until TheForge.exe has fully exited (so the file
+     * is unlocked), install silently, then relaunch. Robust to how long the app takes to quit.
+     */
     private fun silentUpdateVbs(msi: String, exe: String): String {
         val nl = "\r\n"
         return buildString {
             append("Set sh = CreateObject(\"WScript.Shell\")").append(nl)
-            append("WScript.Sleep 1500").append(nl)
+            append("Set wmi = GetObject(\"winmgmts:\\\\.\\root\\cimv2\")").append(nl)
+            append("Dim i").append(nl)
+            append("For i = 1 To 60").append(nl)
+            append("  If wmi.ExecQuery(\"Select ProcessId From Win32_Process Where Name='TheForge.exe'\").Count = 0 Then Exit For").append(nl)
+            append("  WScript.Sleep 500").append(nl)
+            append("Next").append(nl)
             append("sh.Run \"msiexec /i \"\"").append(msi).append("\"\" /qn /norestart\", 0, True").append(nl)
+            append("WScript.Sleep 800").append(nl)
             append("sh.Run \"\"\"").append(exe).append("\"\"\", 1, False").append(nl)
         }
     }

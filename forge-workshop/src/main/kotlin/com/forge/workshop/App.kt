@@ -99,7 +99,10 @@ fun WorkshopApp(
             updateProgress = null
             updateStatus = "Установка… приложение перезапустится"
             Updater.launchInstaller(file)
-            onQuit()
+            // Hard-exit so TheForge.exe unlocks immediately; the (independent) helper waits for the
+            // process to vanish, installs silently, then relaunches. A graceful quit can linger.
+            kotlinx.coroutines.delay(150)
+            kotlin.system.exitProcess(0)
         } catch (e: Exception) {
             updateProgress = null
             updateStatus = "ошибка: ${e.message}"
