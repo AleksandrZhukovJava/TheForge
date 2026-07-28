@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -178,13 +179,19 @@ private fun cardsHeight(cards: List<Pair<String, List<WRow>>>): Float =
 private fun mrsHeight(data: DashboardData): Float =
     if (data.mrs.isEmpty()) 0f else HEADER_H + data.mrs.size * ROW_H + CARD_GAP
 
-/** Height the expanded widget window should take to fit its content (capped), so it's not half-empty. */
-fun widgetExpandedHeight(state: DashboardState, blocks: List<TaskBlock>): Float {
-    val d = (state as? DashboardState.Loaded)?.data ?: return 130f
-    val cards = taskCards(d, blocks)
-    if (cards.isEmpty() && d.mrs.isEmpty()) return 130f
-    val content = 46f + 12f + 18f + cardsHeight(cards) + mrsHeight(d) // bar + body pad + "обновлено"
-    return content.coerceIn(120f, 460f)
+/**
+ * Fair-share split of [avail] dp between two sections wanting [tWant]/[mWant] dp:
+ * if everything fits, each takes its size (surplus stays empty); if one is small it takes only its
+ * size and the other fills; if both overflow they split evenly. Returns (tasks, mrs) allocations.
+ */
+private fun allocate(tWant: Float, mWant: Float, avail: Float): Pair<Float, Float> {
+    if (tWant + mWant <= avail) return tWant to mWant
+    val half = avail / 2f
+    return when {
+        mWant <= half -> (avail - mWant) to mWant
+        tWant <= half -> tWant to (avail - tWant)
+        else -> half to half
+    }
 }
 
 @Composable
@@ -194,25 +201,27 @@ private fun WidgetBody(modifier: Modifier, state: DashboardState, blocks: List<T
             is DashboardState.Loaded -> {
                 val d = state.data
                 val cards = taskCards(d, blocks)
-                val tH = cardsHeight(cards)
-                val mH = mrsHeight(d)
                 if (cards.isEmpty() && d.mrs.isEmpty()) {
                     HintLine("нет активных задач и MR")
                 } else {
-                    // Two regions share the height by demand: a small section takes only its size,
-                    // the surplus goes to the larger; when both overflow they split proportionally.
-                    if (cards.isNotEmpty()) {
-                        Box(Modifier.fillMaxWidth().weight(tH)) {
-                            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(CARD_GAP.dp)) {
-                                cards.forEach { (title, rows) -> WidgetCard(title, forgeColors.tool, null, rows) }
+                    // Distribute the fixed area by demand (fair-share), each section scrolls its own.
+                    BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
+                        val gap = if (cards.isNotEmpty() && d.mrs.isNotEmpty()) CARD_GAP else 0f
+                        val (tAlloc, mAlloc) = allocate(cardsHeight(cards), mrsHeight(d), maxHeight.value - gap)
+                        Column(Modifier.fillMaxWidth()) {
+                            if (cards.isNotEmpty()) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().height(tAlloc.dp).verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(CARD_GAP.dp),
+                                ) {
+                                    cards.forEach { (title, rows) -> WidgetCard(title, forgeColors.tool, null, rows) }
+                                }
                             }
-                        }
-                    }
-                    if (d.mrs.isNotEmpty()) {
-                        Spacer(Modifier.height(CARD_GAP.dp))
-                        Box(Modifier.fillMaxWidth().weight(mH)) {
-                            Column(Modifier.verticalScroll(rememberScrollState())) {
-                                WidgetCard("Merge Requests", forgeColors.press, null, d.mrs)
+                            if (d.mrs.isNotEmpty()) {
+                                if (cards.isNotEmpty()) Spacer(Modifier.height(CARD_GAP.dp))
+                                Column(modifier = Modifier.fillMaxWidth().height(mAlloc.dp).verticalScroll(rememberScrollState())) {
+                                    WidgetCard("Merge Requests", forgeColors.press, null, d.mrs)
+                                }
                             }
                         }
                     }

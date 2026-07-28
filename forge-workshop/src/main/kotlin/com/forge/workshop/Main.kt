@@ -29,7 +29,6 @@ import com.forge.workshop.theme.ForgeTheme
 import com.forge.workshop.tray.SparkPainter
 import com.forge.workshop.widget.TrayPopover
 import com.forge.workshop.widget.WidgetPanel
-import com.forge.workshop.widget.widgetExpandedHeight
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -104,11 +103,8 @@ fun main() = application {
                 size = DpSize(380.dp, 46.dp),
                 position = WindowPosition(Alignment.TopEnd),
             )
-            // Expanded height follows the content (capped), so tasks/MRs share space by demand
-            // instead of a half-empty fixed panel.
-            val expandedHeight = widgetExpandedHeight(dashboard.state, appData.data.blocks)
-            LaunchedEffect(widgetExpanded, expandedHeight) {
-                widgetState.size = DpSize(380.dp, if (widgetExpanded) expandedHeight.dp else 46.dp)
+            LaunchedEffect(widgetExpanded) {
+                widgetState.size = DpSize(380.dp, if (widgetExpanded) 460.dp else 46.dp)
             }
             Window(
                 onCloseRequest = { widgetVisible = false },
