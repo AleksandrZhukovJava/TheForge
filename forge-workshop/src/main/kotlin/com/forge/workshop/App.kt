@@ -73,6 +73,7 @@ fun WorkshopApp(
     val updateScope = rememberCoroutineScope()
     var update by remember { mutableStateOf<UpdateInfo?>(null) }
     var updateStatus by remember { mutableStateOf<String?>(null) }
+    var updateProgress by remember { mutableStateOf<Float?>(null) }
     // Startup check: announce a newer release as a Spark (deduped) and light the gear dot.
     LaunchedEffect(Unit) {
         Updater.checkForUpdate()?.let { info ->
@@ -91,13 +92,16 @@ fun WorkshopApp(
     }
     fun installUpdate() = updateScope.launch {
         val info = update ?: return@launch
-        updateStatus = "скачивание…"
+        updateStatus = "Скачивание…"
+        updateProgress = 0f
         try {
-            val file = Updater.download(info)
-            updateStatus = "запуск установщика…"
+            val file = Updater.download(info) { p -> updateProgress = p; updateStatus = "Скачивание ${(p * 100).toInt()}%" }
+            updateProgress = null
+            updateStatus = "Установка… приложение перезапустится"
             Updater.launchInstaller(file)
             onQuit()
         } catch (e: Exception) {
+            updateProgress = null
             updateStatus = "ошибка: ${e.message}"
         }
     }
@@ -143,6 +147,7 @@ fun WorkshopApp(
                         currentVersion = AppVersion.CURRENT,
                         update = update,
                         updateStatus = updateStatus,
+                        updateProgress = updateProgress,
                         onCheckUpdate = { checkUpdate() },
                         onInstallUpdate = { installUpdate() },
                         initialTab = settingsTab,

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -63,6 +64,7 @@ fun SettingsScreen(
     currentVersion: String,
     update: UpdateInfo?,
     updateStatus: String?,
+    updateProgress: Float?,
     onCheckUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
     initialTab: Int = 0,
@@ -109,7 +111,7 @@ fun SettingsScreen(
                 }
                 1 -> BlocksCard(store)
                 2 -> AiCard(secrets, store)
-                3 -> AppTab(currentVersion, update, updateStatus, onCheckUpdate, onInstallUpdate)
+                3 -> AppTab(currentVersion, update, updateStatus, updateProgress, onCheckUpdate, onInstallUpdate)
             }
         }
     }
@@ -129,7 +131,8 @@ private fun TabChip(title: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun AppTab(currentVersion: String, update: UpdateInfo?, status: String?, onCheck: () -> Unit, onInstall: () -> Unit) {
+private fun AppTab(currentVersion: String, update: UpdateInfo?, status: String?, progress: Float?, onCheck: () -> Unit, onInstall: () -> Unit) {
+    val busy = status != null && (status.startsWith("Скачивание") || status.startsWith("Установка"))
     Column(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(forgeColors.surface2)
             .border(1.dp, forgeColors.border, RoundedCornerShape(12.dp)).padding(18.dp),
@@ -142,16 +145,27 @@ private fun AppTab(currentVersion: String, update: UpdateInfo?, status: String?,
             Text(currentVersion, color = forgeColors.ink, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
         }
         Spacer(Modifier.height(14.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            SaveButton("Проверить обновления") { onCheck() }
-            if (update != null) {
-                Spacer(Modifier.width(10.dp))
-                SaveButton("Обновить до ${update.version}") { onInstall() }
+        if (!busy) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SaveButton("Проверить обновления") { onCheck() }
+                if (update != null) {
+                    Spacer(Modifier.width(10.dp))
+                    SaveButton("Обновить до ${update.version}") { onInstall() }
+                }
+                if (status != null) {
+                    Spacer(Modifier.width(12.dp))
+                    val col = if (status.startsWith("ошибка")) forgeColors.crit else if (update != null) forgeColors.ember else forgeColors.good
+                    Text(status, color = col, fontSize = 12.sp)
+                }
             }
-            if (status != null) {
-                Spacer(Modifier.width(12.dp))
-                val col = if (status.startsWith("ошибка")) forgeColors.crit else if (update != null) forgeColors.ember else forgeColors.good
-                Text(status, color = col, fontSize = 12.sp)
+        } else {
+            // Update in progress — in-app bar, no Windows dialogs.
+            Text(status!!, color = forgeColors.ember, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(8.dp))
+            if (progress != null) {
+                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(6.dp), color = forgeColors.ember, trackColor = forgeColors.surface1)
+            } else {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(6.dp), color = forgeColors.ember, trackColor = forgeColors.surface1)
             }
         }
         if (update != null && !update.notes.isBlank()) {

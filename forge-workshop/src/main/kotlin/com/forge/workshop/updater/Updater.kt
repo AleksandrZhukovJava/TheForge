@@ -3,6 +3,7 @@ package com.forge.workshop.updater
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.onDownload
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
@@ -72,15 +73,16 @@ object Updater {
         }
     }
 
-    /** Download the installer to Downloads (or temp) and return the file. */
-    suspend fun download(info: UpdateInfo): File {
+    /** Download the installer to the temp dir and return the file, reporting 0..1 progress. */
+    suspend fun download(info: UpdateInfo, onProgress: (Float) -> Unit = {}): File {
         val http = HttpClient(CIO) { engine { requestTimeout = 0 } } // 0 = no timeout for a large download
         try {
-            val bytes: ByteArray = http.get(info.downloadUrl) { header(HttpHeaders.UserAgent, UA) }.body()
-            val dir = File(System.getProperty("user.home"), "Downloads").takeIf { it.isDirectory }
-                ?: File(System.getProperty("java.io.tmpdir"))
+            val bytes: ByteArray = http.get(info.downloadUrl) {
+                header(HttpHeaders.UserAgent, UA)
+                onDownload { sent, total -> if (total != null && total > 0) onProgress((sent.toFloat() / total).coerceIn(0f, 1f)) }
+            }.body()
             val ext = if (info.downloadUrl.endsWith(".exe", true)) "exe" else "msi"
-            val out = File(dir, "TheForge-${info.version}.$ext")
+            val out = File(System.getProperty("java.io.tmpdir"), "TheForge-${info.version}.$ext")
             out.writeBytes(bytes)
             return out
         } finally {
@@ -89,19 +91,44 @@ object Updater {
     }
 
     /**
-     * Launch the downloaded installer quietly — `/qb` shows only a progress bar (no wizard, no
-     * install-path page), so a major upgrade just replaces the app in place. Caller quits the app
-     * afterwards so the running exe isn't locked.
+     * Apply the update Steam-style — no visible Windows dialogs. A hidden helper (wscript) waits for
+     * this app to exit, runs the MSI fully silently (`/qn`), then relaunches the app. The caller must
+     * quit right after. Falls back to a basic-UI install if the app exe can't be located.
      */
     fun launchInstaller(file: File) {
-        try {
-            if (file.extension.equals("msi", true)) {
-                ProcessBuilder("msiexec", "/i", file.absolutePath, "/qb", "/norestart").start()
-            } else {
-                ProcessBuilder(file.absolutePath, "/SILENT").start()
+        if (!file.extension.equals("msi", true)) {
+            try { ProcessBuilder(file.absolutePath, "/SILENT").start() } catch (_: Exception) { runCatching { java.awt.Desktop.getDesktop().open(file) } }
+            return
+        }
+        val exe = currentExe()
+        if (exe != null) {
+            runCatching {
+                val vbs = File(System.getProperty("java.io.tmpdir"), "theforge-update.vbs")
+                vbs.writeText(silentUpdateVbs(file.absolutePath, exe))
+                ProcessBuilder("wscript.exe", vbs.absolutePath).start()
+            }.onFailure {
+                runCatching { ProcessBuilder("msiexec", "/i", file.absolutePath, "/qb", "/norestart").start() }
             }
-        } catch (_: Exception) {
-            runCatching { java.awt.Desktop.getDesktop().open(file) }
+        } else {
+            // Dev run (launcher is java.exe) or unknown location — visible basic-UI install.
+            runCatching { ProcessBuilder("msiexec", "/i", file.absolutePath, "/qb", "/norestart").start() }
+                .onFailure { runCatching { java.awt.Desktop.getDesktop().open(file) } }
+        }
+    }
+
+    /** Path of the running packaged launcher, if we're the installed app (not a dev java run). */
+    private fun currentExe(): String? =
+        runCatching { ProcessHandle.current().info().command().orElse(null) }.getOrNull()
+            ?.takeIf { it.endsWith("TheForge.exe", ignoreCase = true) }
+
+    /** VBScript run windowless (via wscript): wait for the app to close, install silently, relaunch. */
+    private fun silentUpdateVbs(msi: String, exe: String): String {
+        val nl = "\r\n"
+        return buildString {
+            append("Set sh = CreateObject(\"WScript.Shell\")").append(nl)
+            append("WScript.Sleep 1500").append(nl)
+            append("sh.Run \"msiexec /i \"\"").append(msi).append("\"\" /qn /norestart\", 0, True").append(nl)
+            append("sh.Run \"\"\"").append(exe).append("\"\"\", 1, False").append(nl)
         }
     }
 
