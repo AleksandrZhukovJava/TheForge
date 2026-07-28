@@ -78,6 +78,7 @@ fun WidgetPanel(
     ) {
         WidgetBar(
             state = state,
+            blocks = blocks,
             expanded = expanded,
             onRefresh = onRefresh,
             dragModifier = Modifier.pointerInput(Unit) {
@@ -102,8 +103,15 @@ fun WidgetPanel(
 
 private fun failing(data: DashboardData): Int = data.pipelines.count { it.status == PillStatus.FAILED }
 
+/** Count of Jira tasks actually shown in the widget — those falling into flagged blocks. */
+private fun shownTaskCount(jira: List<WRow>, blocks: List<TaskBlock>): Int {
+    val widgetBlocks = blocks.filter { it.inWidget }
+    if (widgetBlocks.isEmpty()) return jira.size
+    return jira.count { r -> widgetBlocks.any { b -> b.statuses.any { it.equals(r.statusName, ignoreCase = true) } } }
+}
+
 @Composable
-private fun WidgetBar(state: DashboardState, expanded: Boolean, onRefresh: () -> Unit, dragModifier: Modifier) {
+private fun WidgetBar(state: DashboardState, blocks: List<TaskBlock>, expanded: Boolean, onRefresh: () -> Unit, dragModifier: Modifier) {
     val data = (state as? DashboardState.Loaded)?.data
     Row(
         modifier = dragModifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 10.dp),
@@ -113,7 +121,7 @@ private fun WidgetBar(state: DashboardState, expanded: Boolean, onRefresh: () ->
         Spacer(Modifier.width(9.dp))
         Text("The Forge", color = forgeColors.ink, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
-        MiniStat(data?.jira?.size?.toString() ?: "–", "задач")
+        MiniStat(data?.let { shownTaskCount(it.jira, blocks).toString() } ?: "–", "задач")
         Spacer(Modifier.width(9.dp))
         MiniStat(data?.mrs?.size?.toString() ?: "–", "MR")
         if (data != null && failing(data) > 0) {

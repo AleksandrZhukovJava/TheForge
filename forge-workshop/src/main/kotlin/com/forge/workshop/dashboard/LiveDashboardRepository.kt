@@ -25,6 +25,7 @@ class LiveDashboardRepository(private val secrets: SecretStore) : DashboardRepos
 
     private val http = HttpClient(CIO)
     @Volatile private var workingJiraAuth: String? = null
+    @Volatile private var gitlabUserId: Int? = null
 
     override suspend fun load(): DashboardData = coroutineScope {
         val jiraD = async { named("Jira") { loadJira() } }
@@ -79,8 +80,10 @@ class LiveDashboardRepository(private val secrets: SecretStore) : DashboardRepos
     private suspend fun loadMergeRequests(): List<WRow>? {
         val url = secrets.get("gitlab.base-url")?.trimEnd('/') ?: return null
         val token = secrets.get("gitlab.token") ?: return null
-        return GitLabClient(http, GitLabConfig(url), token)
-            .listAssignedMergeRequests()
+        val client = GitLabClient(http, GitLabConfig(url), token)
+        // MRs where I'm the reviewer ("на моём ревью"); the user id is cached across polls.
+        val uid = gitlabUserId ?: client.currentUser().id.also { gitlabUserId = it }
+        return client.listReviewMergeRequests(uid)
             .map { WRow("!${it.iid}", it.title, mapMrState(it.state), url = it.webUrl, statusName = it.state) }
     }
 

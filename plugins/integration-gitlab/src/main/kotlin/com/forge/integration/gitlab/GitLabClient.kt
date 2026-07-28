@@ -27,6 +27,9 @@ data class MergeRequest(
 )
 
 @Serializable
+data class GitLabUser(val id: Int, val username: String = "")
+
+@Serializable
 data class GitLabProject(
     val id: Int,
     @SerialName("path_with_namespace") val path: String = "",
@@ -69,13 +72,22 @@ class GitLabClient(
         return json.decodeFromString(body)
     }
 
-    /** Cheap personal poll: open merge requests assigned to the current user. */
-    suspend fun listAssignedMergeRequests(perPage: Int = 20): List<MergeRequest> {
+    /** The token's own user (id/username) — needed to filter MRs where I'm the reviewer. */
+    suspend fun currentUser(): GitLabUser {
+        val body = http.get("${config.baseUrl}/api/v4/user") {
+            header("PRIVATE-TOKEN", token)
+            header(HttpHeaders.Accept, "application/json")
+        }.readJson()
+        return json.decodeFromString(body)
+    }
+
+    /** Open merge requests where the given user is a requested reviewer — "на моём ревью". */
+    suspend fun listReviewMergeRequests(reviewerId: Int, perPage: Int = 20): List<MergeRequest> {
         val body = http.get("${config.baseUrl}/api/v4/merge_requests") {
             header("PRIVATE-TOKEN", token)
             header(HttpHeaders.Accept, "application/json")
             url {
-                parameters.append("scope", "assigned_to_me")
+                parameters.append("reviewer_id", reviewerId.toString())
                 parameters.append("state", "opened")
                 parameters.append("per_page", perPage.toString())
             }

@@ -39,11 +39,11 @@ class GitLabIntegrationTest {
         assertEquals("opened", mr.state)
     }
 
-    @Test fun `listAssignedMergeRequests parses the list`() = runBlocking {
+    @Test fun `listReviewMergeRequests parses the list`() = runBlocking {
         val mrs = client(
             """[{"iid":41,"title":"P3: safe integrations","state":"opened"},
                 {"iid":44,"title":"Anvil","state":"opened"}]""",
-        ).listAssignedMergeRequests()
+        ).listReviewMergeRequests(reviewerId = 123)
         assertEquals(2, mrs.size)
         assertEquals(41, mrs.first().iid)
     }
