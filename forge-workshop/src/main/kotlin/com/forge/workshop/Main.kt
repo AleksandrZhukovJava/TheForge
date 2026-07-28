@@ -100,11 +100,11 @@ fun main() = application {
         if (widgetVisible) {
             var widgetExpanded by remember { mutableStateOf(false) }
             val widgetState = rememberWindowState(
-                size = DpSize(300.dp, 46.dp),
+                size = DpSize(380.dp, 46.dp),
                 position = WindowPosition(Alignment.TopEnd),
             )
             LaunchedEffect(widgetExpanded) {
-                widgetState.size = DpSize(300.dp, if (widgetExpanded) 440.dp else 46.dp)
+                widgetState.size = DpSize(380.dp, if (widgetExpanded) 460.dp else 46.dp)
             }
             Window(
                 onCloseRequest = { widgetVisible = false },
