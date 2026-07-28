@@ -32,6 +32,8 @@ data class TaskBlock(
     val id: String,
     val name: String,
     val statuses: List<String> = emptyList(),
+    /** Show this block (and its tasks) in the compact widget. */
+    val inWidget: Boolean = true,
 )
 
 fun defaultBlocks(): List<TaskBlock> = listOf(
@@ -185,6 +187,9 @@ class AppDataStore(private val file: Path) {
             val statuses = csv.split(',').map { it.trim() }.filter { it.isNotEmpty() }
             d.copy(blocks = d.blocks.map { if (it.id == id) it.copy(statuses = statuses) else it })
         }
+
+    fun toggleBlockInWidget(id: String) =
+        update { d -> d.copy(blocks = d.blocks.map { if (it.id == id) it.copy(inWidget = !it.inWidget) else it }) }
 
     fun resetBlocks() = update { it.copy(blocks = defaultBlocks()) }
 

@@ -325,6 +325,15 @@ private fun BlockRow(block: TaskBlock, store: AppDataStore) {
         )
         Spacer(Modifier.width(8.dp))
         Text(
+            if (block.inWidget) "◉ виджет" else "○ виджет",
+            color = if (block.inWidget) forgeColors.ember else forgeColors.inkFaint,
+            fontSize = 11.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { store.toggleBlockInWidget(block.id) }.padding(horizontal = 7.dp, vertical = 6.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
             "✕",
             color = forgeColors.crit,
             fontSize = 14.sp,

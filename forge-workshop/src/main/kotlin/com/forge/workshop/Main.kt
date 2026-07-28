@@ -130,6 +130,7 @@ fun main() = application {
                 ForgeTheme {
                     WidgetPanel(
                         state = dashboard.state,
+                        blocks = appData.data.blocks,
                         onRefresh = { scope.launch { refreshAndDetect() } },
                         onMoveBy = { dx, dy -> awtWindow.setLocation(awtWindow.x + dx, awtWindow.y + dy) },
                         expanded = widgetExpanded,

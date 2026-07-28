@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.forge.workshop.dashboard.DashboardData
 import com.forge.workshop.dashboard.DashboardState
+import com.forge.workshop.data.TaskBlock
 import com.forge.workshop.nav.Spark
 import com.forge.workshop.theme.forgeColors
 import com.forge.workshop.ui.PillStatus
@@ -57,6 +58,7 @@ import com.forge.workshop.ui.StatusPill
 @Composable
 fun WidgetPanel(
     state: DashboardState,
+    blocks: List<TaskBlock>,
     onRefresh: () -> Unit,
     onMoveBy: (Int, Int) -> Unit,
     expanded: Boolean,
@@ -94,7 +96,7 @@ fun WidgetPanel(
                 )
             },
         )
-        if (expanded) WidgetBody(state)
+        if (expanded) WidgetBody(state, blocks)
     }
 }
 
@@ -140,7 +142,7 @@ private fun MiniStat(value: String, label: String) {
 }
 
 @Composable
-private fun WidgetBody(state: DashboardState) {
+private fun WidgetBody(state: DashboardState, blocks: List<TaskBlock>) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, bottom = 10.dp),
         verticalArrangement = Arrangement.spacedBy(7.dp),
@@ -148,10 +150,20 @@ private fun WidgetBody(state: DashboardState) {
         when (state) {
             is DashboardState.Loaded -> {
                 val d = state.data
-                if (d.jira.isNotEmpty()) WidgetCard("Мои Jira-задачи", forgeColors.tool, "+ создать", d.jira)
-                if (d.mrs.isNotEmpty()) WidgetCard("Мои Merge Requests", forgeColors.press, "+ открыть MR", d.mrs)
-                if (d.pipelines.isNotEmpty()) WidgetCard("Пайплайны", forgeColors.master, null, d.pipelines)
-                if (d.jira.isEmpty() && d.mrs.isEmpty() && d.pipelines.isEmpty()) HintLine("нет активных задач и MR")
+                var any = false
+                val widgetBlocks = blocks.filter { it.inWidget }
+                if (widgetBlocks.isEmpty()) {
+                    // No blocks flagged — show one flat card of all Jira tasks.
+                    if (d.jira.isNotEmpty()) { WidgetCard("Мои Jira-задачи", forgeColors.tool, null, d.jira); any = true }
+                } else {
+                    widgetBlocks.forEach { block ->
+                        val rows = d.jira.filter { r -> block.statuses.any { it.equals(r.statusName, ignoreCase = true) } }
+                        if (rows.isNotEmpty()) { WidgetCard(block.name, forgeColors.tool, null, rows); any = true }
+                    }
+                }
+                if (d.mrs.isNotEmpty()) { WidgetCard("Merge Requests", forgeColors.press, null, d.mrs); any = true }
+                if (d.pipelines.isNotEmpty()) { WidgetCard("Пайплайны", forgeColors.master, null, d.pipelines); any = true }
+                if (!any) HintLine("нет активных задач и MR")
                 Text("обновлено ${state.updatedAt}", color = forgeColors.inkFaint, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
             }
             DashboardState.Loading -> HintLine("загрузка…")
