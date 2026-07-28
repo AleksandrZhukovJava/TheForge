@@ -235,22 +235,38 @@ private fun WidgetRow(row: WRow) {
     ) {
       ContextMenuArea(items = menuItems) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(if (row.url != null) Modifier.clickable { openInBrowser(row.url) } else Modifier)
-                .padding(horizontal = 11.dp, vertical = 5.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(row.code, color = forgeColors.inkMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-            Spacer(Modifier.width(8.dp))
+            // Click the number → copy the number.
+            Text(
+                row.code,
+                color = forgeColors.inkMuted,
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.clip(RoundedCornerShape(4.dp)).clickable { copyToClipboard(row.code) }.padding(horizontal = 3.dp, vertical = 2.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            // Click the title → copy the title.
             Text(
                 row.text,
                 color = forgeColors.ink,
                 fontSize = 12.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).clip(RoundedCornerShape(4.dp)).clickable { copyToClipboard(row.text) }.padding(vertical = 2.dp),
             )
+            // Open in browser via a dedicated icon button.
+            if (row.url != null) {
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "↗",
+                    color = forgeColors.ember,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { openInBrowser(row.url) }.padding(horizontal = 5.dp, vertical = 2.dp),
+                )
+            }
         }
       }
     }
@@ -274,10 +290,11 @@ private fun RowTooltip(row: WRow) {
         }
         Spacer(Modifier.height(6.dp))
         Text(row.text, color = forgeColors.ink, fontSize = 13.sp)
-        if (row.url != null) {
-            Spacer(Modifier.height(6.dp))
-            Text("клик — открыть ↗", color = forgeColors.inkFaint, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "клик по номеру/названию — копировать" + if (row.url != null) " · ↗ открыть" else "",
+            color = forgeColors.inkFaint, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
+        )
     }
 }
 
