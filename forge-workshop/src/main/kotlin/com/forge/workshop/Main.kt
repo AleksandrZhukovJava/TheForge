@@ -95,12 +95,17 @@ fun main() = application {
             }
         }
 
-        // Standalone Widget window (compact, transparent, hover-expands, draggable)
+        // Standalone Widget window (compact, transparent, hover-expands, draggable). The window
+        // itself shrinks to the collapsed bar so no empty transparent area blocks clicks or shows.
         if (widgetVisible) {
+            var widgetExpanded by remember { mutableStateOf(false) }
             val widgetState = rememberWindowState(
-                size = DpSize(300.dp, 440.dp),
+                size = DpSize(300.dp, 46.dp),
                 position = WindowPosition(Alignment.TopEnd),
             )
+            LaunchedEffect(widgetExpanded) {
+                widgetState.size = DpSize(300.dp, if (widgetExpanded) 440.dp else 46.dp)
+            }
             Window(
                 onCloseRequest = { widgetVisible = false },
                 state = widgetState,
@@ -116,6 +121,8 @@ fun main() = application {
                         state = dashboard.state,
                         onRefresh = { scope.launch { refreshAndDetect() } },
                         onMoveBy = { dx, dy -> awtWindow.setLocation(awtWindow.x + dx, awtWindow.y + dy) },
+                        expanded = widgetExpanded,
+                        onExpandedChange = { widgetExpanded = it },
                     )
                 }
             }

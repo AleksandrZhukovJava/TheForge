@@ -51,40 +51,46 @@ import com.forge.workshop.ui.StatusPill
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun WidgetPanel(state: DashboardState, onRefresh: () -> Unit, onMoveBy: (Int, Int) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    Box(Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .width(300.dp)
-                .clip(RoundedCornerShape(13.dp))
-                .background(forgeColors.surface1)
-                .border(1.dp, forgeColors.borderStrong, RoundedCornerShape(13.dp))
-                .onPointerEvent(PointerEventType.Enter) { expanded = true }
-                .onPointerEvent(PointerEventType.Exit) { expanded = false },
-        ) {
-            WidgetBar(
-                state = state,
-                expanded = expanded,
-                onRefresh = onRefresh,
-                dragModifier = Modifier.pointerInput(Unit) {
-                    var last: java.awt.Point? = null
-                    detectDragGestures(
-                        onDragStart = { last = java.awt.MouseInfo.getPointerInfo()?.location },
-                        onDragEnd = { last = null },
-                        onDragCancel = { last = null },
-                        onDrag = { change, _ ->
-                            change.consume()
-                            val cur = java.awt.MouseInfo.getPointerInfo()?.location
-                            val prev = last
-                            if (cur != null && prev != null) onMoveBy(cur.x - prev.x, cur.y - prev.y)
-                            if (cur != null) last = cur
-                        },
-                    )
-                },
-            )
-            AnimatedVisibility(expanded) { WidgetBody(state) }
-        }
+fun WidgetPanel(
+    state: DashboardState,
+    onRefresh: () -> Unit,
+    onMoveBy: (Int, Int) -> Unit,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+) {
+    // Fill the whole window so the surface covers it exactly — the window itself shrinks when
+    // collapsed (driven from Main), so there's no leftover transparent area to catch clicks or show
+    // a dark residue.
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(13.dp))
+            .background(forgeColors.surface1)
+            .border(1.dp, forgeColors.borderStrong, RoundedCornerShape(13.dp))
+            .onPointerEvent(PointerEventType.Enter) { onExpandedChange(true) }
+            .onPointerEvent(PointerEventType.Exit) { onExpandedChange(false) },
+    ) {
+        WidgetBar(
+            state = state,
+            expanded = expanded,
+            onRefresh = onRefresh,
+            dragModifier = Modifier.pointerInput(Unit) {
+                var last: java.awt.Point? = null
+                detectDragGestures(
+                    onDragStart = { last = java.awt.MouseInfo.getPointerInfo()?.location },
+                    onDragEnd = { last = null },
+                    onDragCancel = { last = null },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        val cur = java.awt.MouseInfo.getPointerInfo()?.location
+                        val prev = last
+                        if (cur != null && prev != null) onMoveBy(cur.x - prev.x, cur.y - prev.y)
+                        if (cur != null) last = cur
+                    },
+                )
+            },
+        )
+        if (expanded) WidgetBody(state)
     }
 }
 
@@ -132,14 +138,16 @@ private fun MiniStat(value: String, label: String) {
 @Composable
 private fun WidgetBody(state: DashboardState) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(start = 11.dp, end = 11.dp, bottom = 11.dp),
-        verticalArrangement = Arrangement.spacedBy(9.dp),
+        modifier = Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, bottom = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(7.dp),
     ) {
         when (state) {
             is DashboardState.Loaded -> {
-                WidgetCard("Мои Jira-задачи", forgeColors.tool, "+ создать", state.data.jira)
-                WidgetCard("Мои Merge Requests", forgeColors.press, "+ открыть MR", state.data.mrs)
-                WidgetCard("Пайплайны", forgeColors.master, null, state.data.pipelines)
+                val d = state.data
+                if (d.jira.isNotEmpty()) WidgetCard("Мои Jira-задачи", forgeColors.tool, "+ создать", d.jira)
+                if (d.mrs.isNotEmpty()) WidgetCard("Мои Merge Requests", forgeColors.press, "+ открыть MR", d.mrs)
+                if (d.pipelines.isNotEmpty()) WidgetCard("Пайплайны", forgeColors.master, null, d.pipelines)
+                if (d.jira.isEmpty() && d.mrs.isEmpty() && d.pipelines.isEmpty()) HintLine("нет активных задач и MR")
                 Text("обновлено ${state.updatedAt}", color = forgeColors.inkFaint, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
             }
             DashboardState.Loading -> HintLine("загрузка…")
@@ -163,15 +171,15 @@ private fun WidgetCard(title: String, accent: Color, action: String?, rows: List
             .border(1.dp, forgeColors.border, RoundedCornerShape(11.dp)),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(accent))
-            Spacer(Modifier.width(9.dp))
-            Text(title, color = forgeColors.ink, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Box(Modifier.size(7.dp).clip(RoundedCornerShape(2.dp)).background(accent))
+            Spacer(Modifier.width(8.dp))
+            Text(title, color = forgeColors.ink, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             if (action != null) {
                 Spacer(Modifier.weight(1f))
-                Text(action, color = forgeColors.ember, fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
+                Text(action, color = forgeColors.ember, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
             }
         }
         Box(Modifier.fillMaxWidth().heightIn(max = 150.dp).verticalScroll(rememberScrollState())) {
@@ -188,12 +196,12 @@ private fun WidgetCard(title: String, accent: Color, action: String?, rows: List
 @Composable
 private fun WidgetRow(row: WRow) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 9.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(row.code, color = forgeColors.inkMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-        Spacer(Modifier.width(10.dp))
-        Text(row.text, color = forgeColors.ink, fontSize = 12.sp, maxLines = 1)
+        Text(row.code, color = forgeColors.inkMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+        Spacer(Modifier.width(8.dp))
+        Text(row.text, color = forgeColors.ink, fontSize = 12.sp, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
         Spacer(Modifier.weight(1f))
         StatusPill(row.status)
     }
