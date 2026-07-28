@@ -1,6 +1,7 @@
 package com.forge.workshop.widget
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,10 +13,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -193,17 +196,59 @@ private fun WidgetCard(title: String, accent: Color, action: String?, rows: List
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun WidgetRow(row: WRow) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    TooltipArea(
+        delayMillis = 250,
+        tooltip = { RowTooltip(row) },
     ) {
-        Text(row.code, color = forgeColors.inkMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-        Spacer(Modifier.width(8.dp))
-        Text(row.text, color = forgeColors.ink, fontSize = 12.sp, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
-        Spacer(Modifier.weight(1f))
-        StatusPill(row.status)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (row.url != null) Modifier.clickable { openInBrowser(row.url) } else Modifier)
+                .padding(horizontal = 11.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(row.code, color = forgeColors.inkMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            Spacer(Modifier.width(8.dp))
+            Text(row.text, color = forgeColors.ink, fontSize = 12.sp, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
+            Spacer(Modifier.weight(1f))
+            StatusPill(row.status)
+        }
+    }
+}
+
+/** Floating card shown over the widget on hover — full title + a hint to click through. */
+@Composable
+private fun RowTooltip(row: WRow) {
+    Column(
+        modifier = Modifier
+            .widthIn(max = 340.dp)
+            .clip(RoundedCornerShape(9.dp))
+            .background(forgeColors.surface2)
+            .border(1.dp, forgeColors.borderStrong, RoundedCornerShape(9.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(row.code, color = forgeColors.ember, fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.width(8.dp))
+            StatusPill(row.status)
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(row.text, color = forgeColors.ink, fontSize = 13.sp)
+        if (row.url != null) {
+            Spacer(Modifier.height(6.dp))
+            Text("клик — открыть ↗", color = forgeColors.inkFaint, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+        }
+    }
+}
+
+private fun openInBrowser(url: String) {
+    try {
+        java.awt.Desktop.getDesktop().browse(java.net.URI(url))
+    } catch (_: Exception) {
+        // browser unavailable — ignore
     }
 }
 
