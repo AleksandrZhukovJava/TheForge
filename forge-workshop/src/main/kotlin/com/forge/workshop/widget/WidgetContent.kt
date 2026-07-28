@@ -1,5 +1,7 @@
 package com.forge.workshop.widget
 
+import androidx.compose.foundation.ContextMenuArea
+import androidx.compose.foundation.ContextMenuItem
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.background
@@ -220,10 +222,18 @@ private fun WidgetCard(title: String, accent: Color, action: String?, rows: List
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun WidgetRow(row: WRow) {
+    val menuItems = {
+        buildList {
+            if (row.url != null) add(ContextMenuItem("Перейти") { openInBrowser(row.url) })
+            add(ContextMenuItem("Скопировать номер") { copyToClipboard(row.code) })
+            add(ContextMenuItem("Скопировать название") { copyToClipboard(row.text) })
+        }
+    }
     TooltipArea(
         delayMillis = 250,
         tooltip = { RowTooltip(row) },
     ) {
+      ContextMenuArea(items = menuItems) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -242,6 +252,7 @@ private fun WidgetRow(row: WRow) {
                 modifier = Modifier.weight(1f),
             )
         }
+      }
     }
 }
 
@@ -275,6 +286,15 @@ private fun openInBrowser(url: String) {
         java.awt.Desktop.getDesktop().browse(java.net.URI(url))
     } catch (_: Exception) {
         // browser unavailable — ignore
+    }
+}
+
+private fun copyToClipboard(text: String) {
+    try {
+        java.awt.Toolkit.getDefaultToolkit().systemClipboard
+            .setContents(java.awt.datatransfer.StringSelection(text), null)
+    } catch (_: Exception) {
+        // no clipboard — ignore
     }
 }
 

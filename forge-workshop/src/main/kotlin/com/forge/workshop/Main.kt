@@ -124,7 +124,10 @@ fun main() = application {
                     while (true) {
                         delay(160)
                         val p = java.awt.MouseInfo.getPointerInfo()?.location ?: continue
-                        if (!awtWindow.bounds.contains(p)) { widgetExpanded = false; break }
+                        // Small margin so a hover tooltip / right-click menu spilling just past the
+                        // window edge doesn't collapse the widget out from under the cursor.
+                        val b = java.awt.Rectangle(awtWindow.bounds).apply { grow(52, 52) }
+                        if (!b.contains(p)) { widgetExpanded = false; break }
                     }
                 }
                 ForgeTheme {
