@@ -99,7 +99,7 @@ fun WidgetPanel(
                 )
             },
         )
-        if (expanded) WidgetBody(state, blocks)
+        if (expanded) WidgetBody(Modifier.weight(1f), state, blocks)
     }
 }
 
@@ -151,29 +151,73 @@ private fun MiniStat(value: String, label: String) {
     }
 }
 
+// Rough per-element heights (dp) for allocating space by demand.
+private const val ROW_H = 30f
+private const val HEADER_H = 38f
+private const val CARD_GAP = 7f
+
+/** Jira/pipeline cards to show in the widget (title + rows), honouring the flagged blocks. */
+private fun taskCards(data: DashboardData, blocks: List<TaskBlock>): List<Pair<String, List<WRow>>> {
+    val out = mutableListOf<Pair<String, List<WRow>>>()
+    val widgetBlocks = blocks.filter { it.inWidget }
+    if (widgetBlocks.isEmpty()) {
+        if (data.jira.isNotEmpty()) out += "Мои Jira-задачи" to data.jira
+    } else {
+        widgetBlocks.forEach { b ->
+            val rows = data.jira.filter { r -> b.statuses.any { it.equals(r.statusName, ignoreCase = true) } }
+            if (rows.isNotEmpty()) out += b.name to rows
+        }
+    }
+    if (data.pipelines.isNotEmpty()) out += "Пайплайны" to data.pipelines
+    return out
+}
+
+private fun cardsHeight(cards: List<Pair<String, List<WRow>>>): Float =
+    cards.sumOf { (HEADER_H + it.second.size * ROW_H + CARD_GAP).toDouble() }.toFloat()
+
+private fun mrsHeight(data: DashboardData): Float =
+    if (data.mrs.isEmpty()) 0f else HEADER_H + data.mrs.size * ROW_H + CARD_GAP
+
+/** Height the expanded widget window should take to fit its content (capped), so it's not half-empty. */
+fun widgetExpandedHeight(state: DashboardState, blocks: List<TaskBlock>): Float {
+    val d = (state as? DashboardState.Loaded)?.data ?: return 130f
+    val cards = taskCards(d, blocks)
+    if (cards.isEmpty() && d.mrs.isEmpty()) return 130f
+    val content = 46f + 12f + 18f + cardsHeight(cards) + mrsHeight(d) // bar + body pad + "обновлено"
+    return content.coerceIn(120f, 460f)
+}
+
 @Composable
-private fun WidgetBody(state: DashboardState, blocks: List<TaskBlock>) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, bottom = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(7.dp),
-    ) {
+private fun WidgetBody(modifier: Modifier, state: DashboardState, blocks: List<TaskBlock>) {
+    Column(modifier = modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, bottom = 10.dp)) {
         when (state) {
             is DashboardState.Loaded -> {
                 val d = state.data
-                var any = false
-                val widgetBlocks = blocks.filter { it.inWidget }
-                if (widgetBlocks.isEmpty()) {
-                    // No blocks flagged — show one flat card of all Jira tasks.
-                    if (d.jira.isNotEmpty()) { WidgetCard("Мои Jira-задачи", forgeColors.tool, null, d.jira); any = true }
+                val cards = taskCards(d, blocks)
+                val tH = cardsHeight(cards)
+                val mH = mrsHeight(d)
+                if (cards.isEmpty() && d.mrs.isEmpty()) {
+                    HintLine("нет активных задач и MR")
                 } else {
-                    widgetBlocks.forEach { block ->
-                        val rows = d.jira.filter { r -> block.statuses.any { it.equals(r.statusName, ignoreCase = true) } }
-                        if (rows.isNotEmpty()) { WidgetCard(block.name, forgeColors.tool, null, rows); any = true }
+                    // Two regions share the height by demand: a small section takes only its size,
+                    // the surplus goes to the larger; when both overflow they split proportionally.
+                    if (cards.isNotEmpty()) {
+                        Box(Modifier.fillMaxWidth().weight(tH)) {
+                            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(CARD_GAP.dp)) {
+                                cards.forEach { (title, rows) -> WidgetCard(title, forgeColors.tool, null, rows) }
+                            }
+                        }
+                    }
+                    if (d.mrs.isNotEmpty()) {
+                        Spacer(Modifier.height(CARD_GAP.dp))
+                        Box(Modifier.fillMaxWidth().weight(mH)) {
+                            Column(Modifier.verticalScroll(rememberScrollState())) {
+                                WidgetCard("Merge Requests", forgeColors.press, null, d.mrs)
+                            }
+                        }
                     }
                 }
-                if (d.mrs.isNotEmpty()) { WidgetCard("Merge Requests", forgeColors.press, null, d.mrs); any = true }
-                if (d.pipelines.isNotEmpty()) { WidgetCard("Пайплайны", forgeColors.master, null, d.pipelines); any = true }
-                if (!any) HintLine("нет активных задач и MR")
+                Spacer(Modifier.height(4.dp))
                 Text("обновлено ${state.updatedAt}", color = forgeColors.inkFaint, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
             }
             DashboardState.Loading -> HintLine("загрузка…")
@@ -208,12 +252,10 @@ private fun WidgetCard(title: String, accent: Color, action: String?, rows: List
                 Text(action, color = forgeColors.ember, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
             }
         }
-        Box(Modifier.fillMaxWidth().heightIn(max = 150.dp).verticalScroll(rememberScrollState())) {
-            Column {
-                rows.forEachIndexed { i, row ->
-                    if (i > 0) Box(Modifier.fillMaxWidth().padding(horizontal = 13.dp).size(1.dp).background(forgeColors.border))
-                    WidgetRow(row)
-                }
+        Column {
+            rows.forEachIndexed { i, row ->
+                if (i > 0) Box(Modifier.fillMaxWidth().padding(horizontal = 13.dp).size(1.dp).background(forgeColors.border))
+                WidgetRow(row)
             }
         }
     }
