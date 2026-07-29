@@ -165,9 +165,6 @@ private fun MiniStat(value: String, label: String) {
     }
 }
 
-// Rough per-element heights (dp) for allocating space by demand.
-private const val ROW_H = 30f
-private const val HEADER_H = 38f
 private const val CARD_GAP = 7f
 
 /** Jira/pipeline cards to show in the widget (title + rows), honouring the flagged blocks. */
@@ -186,27 +183,6 @@ private fun taskCards(data: DashboardData, blocks: List<TaskBlock>): List<Pair<S
     return out
 }
 
-private fun cardsHeight(cards: List<Pair<String, List<WRow>>>): Float =
-    cards.sumOf { (HEADER_H + it.second.size * ROW_H + CARD_GAP).toDouble() }.toFloat()
-
-private fun mrsHeight(data: DashboardData): Float =
-    if (data.mrs.isEmpty()) 0f else HEADER_H + data.mrs.size * ROW_H + CARD_GAP
-
-/**
- * Fair-share split of [avail] dp between two sections wanting [tWant]/[mWant] dp:
- * if everything fits, each takes its size (surplus stays empty); if one is small it takes only its
- * size and the other fills; if both overflow they split evenly. Returns (tasks, mrs) allocations.
- */
-private fun allocate(tWant: Float, mWant: Float, avail: Float): Pair<Float, Float> {
-    if (tWant + mWant <= avail) return tWant to mWant
-    val half = avail / 2f
-    return when {
-        mWant <= half -> (avail - mWant) to mWant
-        tWant <= half -> tWant to (avail - tWant)
-        else -> half to half
-    }
-}
-
 @Composable
 private fun WidgetBody(modifier: Modifier, state: DashboardState, blocks: List<TaskBlock>) {
     Column(modifier = modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, bottom = 10.dp)) {
@@ -217,14 +193,14 @@ private fun WidgetBody(modifier: Modifier, state: DashboardState, blocks: List<T
                 if (cards.isEmpty() && d.mrs.isEmpty()) {
                     HintLine("нет активных задач и MR")
                 } else {
-                    // Distribute the fixed area by demand (fair-share), each section scrolls its own.
+                    // Tasks greedily fill the space (weight 1f); MRs take only their size at the
+                    // bottom, capped at half so a big MR list can't starve the tasks. Each scrolls.
                     BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
-                        val gap = if (cards.isNotEmpty() && d.mrs.isNotEmpty()) CARD_GAP else 0f
-                        val (tAlloc, mAlloc) = allocate(cardsHeight(cards), mrsHeight(d), maxHeight.value - gap)
-                        Column(Modifier.fillMaxWidth()) {
+                        val mrMax = if (cards.isEmpty()) maxHeight else (maxHeight.value * 0.5f).dp
+                        Column(Modifier.fillMaxSize()) {
                             if (cards.isNotEmpty()) {
                                 Column(
-                                    modifier = Modifier.fillMaxWidth().height(tAlloc.dp).verticalScroll(rememberScrollState()),
+                                    modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
                                     verticalArrangement = Arrangement.spacedBy(CARD_GAP.dp),
                                 ) {
                                     cards.forEach { (title, rows) -> WidgetCard(title, forgeColors.tool, null, rows) }
@@ -232,7 +208,7 @@ private fun WidgetBody(modifier: Modifier, state: DashboardState, blocks: List<T
                             }
                             if (d.mrs.isNotEmpty()) {
                                 if (cards.isNotEmpty()) Spacer(Modifier.height(CARD_GAP.dp))
-                                Column(modifier = Modifier.fillMaxWidth().height(mAlloc.dp).verticalScroll(rememberScrollState())) {
+                                Column(modifier = Modifier.fillMaxWidth().heightIn(max = mrMax).verticalScroll(rememberScrollState())) {
                                     WidgetCard("Merge Requests", forgeColors.press, null, d.mrs)
                                 }
                             }
