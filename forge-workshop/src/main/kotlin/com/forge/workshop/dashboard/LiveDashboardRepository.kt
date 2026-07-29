@@ -26,29 +26,27 @@ class LiveDashboardRepository(private val secrets: SecretStore) : DashboardRepos
     private val http = HttpClient(CIO)
     @Volatile private var workingJiraAuth: String? = null
     @Volatile private var gitlabUserId: Int? = null
+    // Last good rows per section, so one integration failing (e.g. GitLab while on VPN) doesn't
+    // freeze the other — Jira statuses keep updating even if GitLab is down, and vice versa.
+    @Volatile private var lastJira: List<WRow>? = null
+    @Volatile private var lastMrs: List<WRow>? = null
 
     override suspend fun load(): DashboardData = coroutineScope {
-        val jiraD = async { named("Jira") { loadJira() } }
-        val mrsD = async { named("GitLab") { loadMergeRequests() } }
-        val jira = jiraD.await()
-        val mrs = mrsD.await()
-        if (jira == null && mrs == null) throw NotConfiguredException()
-        DashboardData(
-            jira = jira ?: emptyList(),
-            mrs = mrs ?: emptyList(),
-            pipelines = emptyList(),
-        )
-    }
+        val jiraR = async { runCatching { loadJira() } }
+        val mrsR = async { runCatching { loadMergeRequests() } }
+        val jr = jiraR.await()
+        val mr = mrsR.await()
 
-    /** Prefix any failure with the integration name so the widget shows which one is misconfigured. */
-    private suspend fun <T> named(name: String, block: suspend () -> T?): T? =
-        try {
-            block()
-        } catch (e: NotConfiguredException) {
-            throw e
-        } catch (e: Exception) {
-            throw IllegalStateException("$name: ${e.message}", e)
+        // Success (incl. null = not configured) refreshes the cache; a failure keeps the last good.
+        val jira = if (jr.isSuccess) jr.getOrNull().also { lastJira = it } else lastJira
+        val mrs = if (mr.isSuccess) mr.getOrNull().also { lastMrs = it } else lastMrs
+
+        when {
+            jira != null || mrs != null -> DashboardData(jira ?: emptyList(), mrs ?: emptyList(), emptyList())
+            jr.isSuccess && mr.isSuccess -> throw NotConfiguredException()
+            else -> throw (jr.exceptionOrNull() ?: mr.exceptionOrNull() ?: NotConfiguredException())
         }
+    }
 
     private suspend fun loadJira(): List<WRow>? {
         val base = secrets.get("jira.base-url")?.trimEnd('/') ?: return null
