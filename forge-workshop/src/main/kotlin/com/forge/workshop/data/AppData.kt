@@ -68,6 +68,8 @@ data class AppData(
     val blocked: Set<String> = emptySet(),
     /** Task ids/keys marked done — a local overlay; a Jira issue is never changed in Jira. */
     val done: Set<String> = emptySet(),
+    /** Task ids/keys archived — hidden from active and Done lists, kept in a separate Archive. */
+    val archived: Set<String> = emptySet(),
     /** Status columns for the Bench. */
     val blocks: List<TaskBlock> = defaultBlocks(),
     /** Default Jira project key for the create form, e.g. "OPS". */
@@ -172,6 +174,14 @@ class AppDataStore(private val file: Path) {
         d.copy(
             done = if (nowDone) d.done + id else d.done - id,
             current = if (nowDone) d.current - id else d.current,
+        )
+    }
+
+    fun toggleArchived(id: String) = update { d ->
+        val nowArchived = id !in d.archived
+        d.copy(
+            archived = if (nowArchived) d.archived + id else d.archived - id,
+            current = if (nowArchived) d.current - id else d.current,
         )
     }
 

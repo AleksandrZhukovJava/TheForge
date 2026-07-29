@@ -100,8 +100,10 @@ private fun TasksColumn(state: DashboardState, store: AppDataStore, onRunRecipe:
         }
     }
     val doneIds = store.data.done
-    val active = all.filterNot { it.id in doneIds }
-    val done = all.filter { it.id in doneIds }
+    val archivedIds = store.data.archived
+    val active = all.filterNot { it.id in doneIds || it.id in archivedIds }
+    val done = all.filter { it.id in doneIds && it.id !in archivedIds }
+    val archived = all.filter { it.id in archivedIds }
 
     val cmp = compareByDescending<BenchTask> { it.current }.thenBy { it.blocked }.thenByDescending { it.priority.ordinal }
     val blocks = store.data.blocks
@@ -144,6 +146,7 @@ private fun TasksColumn(state: DashboardState, store: AppDataStore, onRunRecipe:
                 }
             }
             if (done.isNotEmpty()) DoneSection(done, store)
+            if (archived.isNotEmpty()) ArchiveSection(archived, store)
         }
     }
 }
@@ -202,6 +205,7 @@ private fun TaskCard(
                 Action("★ текущая", task.current, forgeColors.good) { store.toggleCurrent(task.id) }
                 Action("заблок.", task.blocked, forgeColors.crit) { store.toggleBlocked(task.id) }
                 Action("✓ готово", false, forgeColors.good) { store.toggleDone(task.id) }
+                Action("🗄 архив", false, forgeColors.inkMuted) { store.toggleArchived(task.id) }
                 if (task.isLocal) {
                     Action("✎", isEditing, forgeColors.tool) { onToggleEdit() }
                     Action("✕", false, forgeColors.crit) { store.deleteLocalTask(task.id) }
@@ -257,6 +261,34 @@ private fun DoneSection(done: List<BenchTask>, store: AppDataStore) {
                     Text(task.title, color = forgeColors.inkMuted, fontSize = 13.sp, textDecoration = TextDecoration.LineThrough)
                     Spacer(Modifier.weight(1f))
                     Action("вернуть", false, forgeColors.tool) { store.toggleDone(task.id) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ArchiveSection(archived: List<BenchTask>, store: AppDataStore) {
+    var open by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            "Архив · ${archived.size}   ${if (open) "▲" else "▼"}",
+            color = forgeColors.inkFaint,
+            fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { open = !open }.padding(vertical = 6.dp),
+        )
+        if (open) {
+            archived.forEach { task ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp)).background(forgeColors.surface1).padding(horizontal = 13.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(task.code, color = forgeColors.inkFaint, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                    Spacer(Modifier.width(10.dp))
+                    Text(task.title, color = forgeColors.inkMuted, fontSize = 13.sp, maxLines = 1)
+                    Spacer(Modifier.weight(1f))
+                    Action("разархивировать", false, forgeColors.tool) { store.toggleArchived(task.id) }
                 }
             }
         }
