@@ -27,10 +27,13 @@ import java.util.UUID
 import com.forge.workshop.splash.SplashWindow
 import com.forge.workshop.theme.ForgeTheme
 import com.forge.workshop.tray.SparkPainter
+import com.forge.workshop.vpn.Vpn
 import com.forge.workshop.widget.TrayPopover
 import com.forge.workshop.widget.WidgetPanel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 fun main() = application {
     // Persistent secret store — tokens survive restarts (OS-keychain-backed store is the next upgrade).
@@ -42,6 +45,15 @@ fun main() = application {
     var refreshMinutes by remember { mutableStateOf(3) }
     var widgetVisible by remember { mutableStateOf(true) }
     var popoverVisible by remember { mutableStateOf(false) }
+
+    // Poll VPN status (which adapter is tracked comes from settings; blank = auto-detect).
+    var vpnConnected by remember { mutableStateOf(false) }
+    LaunchedEffect(appData.data.vpnInterface) {
+        while (true) {
+            vpnConnected = withContext(Dispatchers.IO) { Vpn.isConnected(appData.data.vpnInterface) }
+            delay(8_000)
+        }
+    }
 
     // Branded startup splash — shown briefly while the app wires up, then the real windows appear.
     var showSplash by remember { mutableStateOf(true) }
@@ -134,6 +146,7 @@ fun main() = application {
                     WidgetPanel(
                         state = dashboard.state,
                         blocks = appData.data.blocks,
+                        vpnConnected = vpnConnected,
                         onRefresh = { scope.launch { refreshAndDetect() } },
                         onMoveBy = { dx, dy -> awtWindow.setLocation(awtWindow.x + dx, awtWindow.y + dy) },
                         expanded = widgetExpanded,

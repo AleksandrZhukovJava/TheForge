@@ -92,6 +92,8 @@ data class AppData(
     val skillProject: String = "default",
     /** Last app version we already announced in Sparks, so we don't repeat it every launch. */
     val notifiedUpdateVersion: String = "",
+    /** VPN adapter to track (blank = auto-detect any VPN-like adapter). */
+    val vpnInterface: String = "",
 )
 
 const val DEFAULT_PROMPT_TEMPLATE: String =
@@ -252,4 +254,6 @@ class AppDataStore(private val file: Path) {
     fun taskRecipe(taskKey: String): SavedRecipe? = data.taskRecipe[taskKey]?.let { id -> data.recipes.firstOrNull { it.id == id } }
 
     fun setSkillProject(project: String) = update { it.copy(skillProject = project.ifBlank { "default" }) }
+
+    fun setVpnInterface(name: String) = update { it.copy(vpnInterface = name) }
 }

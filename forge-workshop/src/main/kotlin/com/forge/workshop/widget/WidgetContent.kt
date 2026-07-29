@@ -62,6 +62,7 @@ import com.forge.workshop.ui.StatusPill
 fun WidgetPanel(
     state: DashboardState,
     blocks: List<TaskBlock>,
+    vpnConnected: Boolean,
     onRefresh: () -> Unit,
     onMoveBy: (Int, Int) -> Unit,
     expanded: Boolean,
@@ -82,6 +83,7 @@ fun WidgetPanel(
         WidgetBar(
             state = state,
             blocks = blocks,
+            vpnConnected = vpnConnected,
             expanded = expanded,
             onRefresh = onRefresh,
             dragModifier = Modifier.pointerInput(Unit) {
@@ -114,7 +116,7 @@ private fun shownTaskCount(jira: List<WRow>, blocks: List<TaskBlock>): Int {
 }
 
 @Composable
-private fun WidgetBar(state: DashboardState, blocks: List<TaskBlock>, expanded: Boolean, onRefresh: () -> Unit, dragModifier: Modifier) {
+private fun WidgetBar(state: DashboardState, blocks: List<TaskBlock>, vpnConnected: Boolean, expanded: Boolean, onRefresh: () -> Unit, dragModifier: Modifier) {
     val data = (state as? DashboardState.Loaded)?.data
     Row(
         modifier = dragModifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 10.dp),
@@ -124,6 +126,8 @@ private fun WidgetBar(state: DashboardState, blocks: List<TaskBlock>, expanded: 
         Spacer(Modifier.width(9.dp))
         Text("The Forge", color = forgeColors.ink, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
+        VpnDot(vpnConnected)
+        Spacer(Modifier.width(9.dp))
         MiniStat(data?.let { shownTaskCount(it.jira, blocks).toString() } ?: "–", "задач")
         Spacer(Modifier.width(9.dp))
         MiniStat(data?.mrs?.size?.toString() ?: "–", "MR")
@@ -140,6 +144,15 @@ private fun WidgetBar(state: DashboardState, blocks: List<TaskBlock>, expanded: 
         )
         Spacer(Modifier.width(6.dp))
         Text(if (expanded) "▲" else "▼", color = forgeColors.inkFaint, fontSize = 10.sp)
+    }
+}
+
+@Composable
+private fun VpnDot(connected: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(7.dp).clip(RoundedCornerShape(999.dp)).background(if (connected) forgeColors.good else forgeColors.crit))
+        Spacer(Modifier.width(4.dp))
+        Text("VPN", color = if (connected) forgeColors.good else forgeColors.inkFaint, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
     }
 }
 

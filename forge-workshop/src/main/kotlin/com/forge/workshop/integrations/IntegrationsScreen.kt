@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -45,6 +47,7 @@ import com.forge.workshop.llm.LlmClient
 import com.forge.workshop.llm.LlmProfile
 import com.forge.workshop.theme.forgeColors
 import com.forge.workshop.updater.UpdateInfo
+import com.forge.workshop.vpn.Vpn
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import kotlinx.coroutines.launch
@@ -108,6 +111,8 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(12.dp))
                     RefreshCard(refreshMinutes, onIntervalChange)
+                    Spacer(Modifier.height(12.dp))
+                    VpnCard(store)
                 }
                 1 -> BlocksCard(store)
                 2 -> AiCard(secrets, store)
@@ -179,6 +184,47 @@ private fun AppTab(currentVersion: String, update: UpdateInfo?, status: String?,
             "Обновления берутся из GitHub Releases. При выходе новой версии появится значок на «Настройках» и запись в Sparks.",
             color = forgeColors.inkFaint, fontSize = 11.sp,
         )
+    }
+}
+
+@Composable
+private fun VpnCard(store: AppDataStore) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val selected = store.data.vpnInterface
+    val candidates = remember(menuOpen) { Vpn.candidates() }
+    var connected by remember { mutableStateOf(false) }
+    LaunchedEffect(selected, menuOpen) { connected = Vpn.isConnected(selected) }
+
+    Column(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(forgeColors.surface2)
+            .border(1.dp, forgeColors.border, RoundedCornerShape(12.dp)).padding(18.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("VPN", color = forgeColors.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(10.dp))
+            Box(Modifier.size(9.dp).clip(RoundedCornerShape(999.dp)).background(if (connected) forgeColors.good else forgeColors.crit))
+            Spacer(Modifier.width(6.dp))
+            Text(if (connected) "подключён" else "нет соединения", color = if (connected) forgeColors.good else forgeColors.inkMuted, fontSize = 12.sp)
+        }
+        Spacer(Modifier.height(4.dp))
+        Text("Индикатор в виджете. «Авто» — любой VPN-подобный адаптер; либо выберите конкретный.", color = forgeColors.inkFaint, fontSize = 12.sp)
+        Spacer(Modifier.height(12.dp))
+        Box {
+            Row(
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).border(1.dp, forgeColors.borderStrong, RoundedCornerShape(8.dp)).clickable { menuOpen = true }.padding(horizontal = 12.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(selected.ifBlank { "Авто" }, color = forgeColors.ink, fontSize = 13.sp)
+                Spacer(Modifier.width(8.dp))
+                Text("▾", color = forgeColors.inkMuted, fontSize = 13.sp)
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(text = { Text("Авто") }, onClick = { store.setVpnInterface(""); menuOpen = false })
+                candidates.forEach { name ->
+                    DropdownMenuItem(text = { Text(name, fontSize = 13.sp) }, onClick = { store.setVpnInterface(name); menuOpen = false })
+                }
+            }
+        }
     }
 }
 
