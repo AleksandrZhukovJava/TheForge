@@ -36,6 +36,7 @@ import com.forge.workshop.theme.forgeColors
 
 enum class NavItem(val label: String) {
     BENCH("Bench"),
+    WELD("Weld"),
     FOUNDRY("Foundry"),
     RECIPES("Recipes"),
     SKILLS("Skills"),
@@ -222,6 +223,14 @@ private fun NavIcon(item: NavItem, tint: Color) {
                 drawCircle(tint, radius = s * 0.4f, style = Stroke(width = s * 0.09f))
                 drawLine(tint, center, Offset(center.x, center.y - s * 0.26f), strokeWidth = s * 0.09f, cap = StrokeCap.Round)
                 drawLine(tint, center, Offset(center.x + s * 0.2f, center.y + s * 0.05f), strokeWidth = s * 0.09f, cap = StrokeCap.Round)
+            }
+            NavItem.WELD -> {
+                // two plates joined by a bright seam (a weld = a merge)
+                val st = Stroke(width = s * 0.08f)
+                val rr = CornerRadius(s * 0.06f)
+                drawRoundRect(tint, topLeft = Offset(s * 0.1f, s * 0.34f), size = Size(s * 0.3f, s * 0.34f), cornerRadius = rr, style = st)
+                drawRoundRect(tint, topLeft = Offset(s * 0.6f, s * 0.34f), size = Size(s * 0.3f, s * 0.34f), cornerRadius = rr, style = st)
+                drawLine(tint, Offset(s * 0.5f, s * 0.24f), Offset(s * 0.5f, s * 0.78f), s * 0.1f, StrokeCap.Round)
             }
             NavItem.RECIPES -> {
                 // node graph: two nodes joined by an edge

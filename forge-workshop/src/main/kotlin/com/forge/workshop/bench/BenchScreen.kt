@@ -46,7 +46,6 @@ import com.forge.workshop.recipe.SavedRecipe
 import com.forge.workshop.theme.forgeColors
 import com.forge.workshop.ui.PillStatus
 import com.forge.workshop.ui.StatusPill
-import com.forge.workshop.widget.WRow
 
 private data class BenchTask(
     val id: String,
@@ -86,10 +85,7 @@ fun BenchScreen(state: DashboardState, store: AppDataStore, onRefresh: () -> Uni
             )
         }
         Spacer(Modifier.height(18.dp))
-        Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            TasksColumn(state, store, onRunRecipe, Modifier.weight(1f))
-            MrColumn(state, Modifier.weight(1f))
-        }
+        TasksColumn(state, store, onRunRecipe, Modifier.fillMaxSize())
     }
 }
 
@@ -299,46 +295,6 @@ private fun RecipeControl(taskId: String, store: AppDataStore, onRun: (SavedReci
 }
 
 @Composable
-private fun MrColumn(state: DashboardState, modifier: Modifier) {
-    Column(modifier.fillMaxHeight()) {
-        val mrs = (state as? DashboardState.Loaded)?.data?.mrs.orEmpty()
-        SectionHeader("Merge Requests", forgeColors.press, mrs.size)
-        Spacer(Modifier.height(10.dp))
-        when (state) {
-            is DashboardState.Loaded ->
-                if (mrs.isEmpty()) Hint("пусто")
-                else Column(
-                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) { mrs.forEach { MrCard(it) } }
-            DashboardState.Loading -> Hint("загрузка…")
-            is DashboardState.Error -> Hint("ошибка: ${state.message}", forgeColors.crit)
-            DashboardState.NotConfigured -> Hint("подключите GitLab в Integrations")
-        }
-    }
-}
-
-@Composable
-private fun MrCard(row: WRow) {
-    Column(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(11.dp)).background(forgeColors.surface2)
-            .border(1.dp, forgeColors.border, RoundedCornerShape(11.dp)).padding(15.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(row.code, color = forgeColors.inkMuted, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-            Spacer(Modifier.weight(1f))
-            StatusPill(row.status)
-        }
-        Spacer(Modifier.height(7.dp))
-        Text(row.text, color = forgeColors.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-        if (row.url != null) {
-            Spacer(Modifier.height(10.dp))
-            Text("открыть ↗", color = forgeColors.ember, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable { openInBrowser(row.url) })
-        }
-    }
-}
-
-@Composable
 private fun SectionHeader(title: String, accent: Color, count: Int) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(8.dp).height(8.dp).clip(RoundedCornerShape(2.dp)).background(accent))
@@ -411,11 +367,6 @@ private fun PriorityChip(priority: Priority, onClick: () -> Unit) {
     ) {
         Text(label, color = color, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
     }
-}
-
-@Composable
-private fun Hint(text: String, color: Color = forgeColors.inkMuted) {
-    Text(text, color = color, fontSize = 13.sp)
 }
 
 private fun openInBrowser(url: String) {

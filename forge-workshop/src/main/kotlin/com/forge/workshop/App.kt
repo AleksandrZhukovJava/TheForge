@@ -53,6 +53,7 @@ import com.forge.workshop.skills.SkillStore
 import com.forge.workshop.skills.SkillsScreen
 import com.forge.workshop.sparks.SparksScreen
 import com.forge.workshop.theme.forgeColors
+import com.forge.workshop.weld.WeldScreen
 import com.forge.workshop.updater.AppVersion
 import com.forge.workshop.updater.UpdateInfo
 import com.forge.workshop.updater.Updater
@@ -123,7 +124,7 @@ fun WorkshopApp(
     // Fetch fresh data whenever the Bench is opened (background polling only runs while the
     // widget/popover is visible). Opening Sparks clears the unread markers.
     LaunchedEffect(selected) {
-        if (selected == NavItem.BENCH) onRefresh()
+        if (selected == NavItem.BENCH || selected == NavItem.WELD) onRefresh()
         if (selected == NavItem.SPARKS) store.markNotificationsRead()
     }
 
@@ -191,6 +192,7 @@ fun WorkshopApp(
                         onRun = { runnerRecipe = it },
                     )
                     selected == NavItem.BENCH -> BenchScreen(dashboardState, store, onRefresh, onRunRecipe = { runnerRecipe = it; selected = NavItem.RECIPES })
+                    selected == NavItem.WELD -> WeldScreen(dashboardState, onRefresh)
                     selected == NavItem.FOUNDRY -> FoundryScreen(onRun = { running = it })
                     selected == NavItem.SKILLS && skillEditorOpen -> SkillEditorScreen(
                         store = skillStore,
