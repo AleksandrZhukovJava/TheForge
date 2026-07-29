@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -59,6 +60,10 @@ private data class BenchTask(
     val blocked: Boolean,
     val statusName: String?,
 )
+
+private enum class BenchTab(val label: String) {
+    ALL("Все"), PRIORITY("Приоритет"), BLOCKED("Заблок."), LOCAL("Свои"), DONE("Готово"), ARCHIVE("Архив")
+}
 
 /** Bench — the workbench: Jira tasks + your own tasks, with priority, overlays and MRs. */
 @Composable
@@ -112,10 +117,24 @@ private fun TasksColumn(state: DashboardState, store: AppDataStore, onRunRecipe:
     val grouped = active.groupBy { blockName(it) }
     val orderedNames = (blocks.map { it.name } + "Прочее").distinct()
 
-    var editing by remember { mutableStateOf<String?>(null) }
+    val priority = active.filter { it.priority != Priority.NONE }.sortedByDescending { it.priority.ordinal }
+    val blocked = active.filter { it.blocked }.sortedWith(cmp)
+    val local = active.filter { it.isLocal }.sortedWith(cmp)
+
+    var tab by remember { mutableStateOf(BenchTab.ALL) }
+    var editingId by remember { mutableStateOf<String?>(null) }
+
+    val counts = mapOf(
+        BenchTab.ALL to active.size, BenchTab.PRIORITY to priority.size, BenchTab.BLOCKED to blocked.size,
+        BenchTab.LOCAL to local.size, BenchTab.DONE to done.size, BenchTab.ARCHIVE to archived.size,
+    )
 
     Column(modifier.fillMaxHeight()) {
         SectionHeader("Мои задачи", forgeColors.tool, active.size)
+        Spacer(Modifier.height(10.dp))
+        Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            BenchTab.entries.forEach { t -> BenchTabChip(t.label, counts[t] ?: 0, t == tab) { tab = t } }
+        }
         Spacer(Modifier.height(10.dp))
         AddLocalTask { store.addLocalTask(it) }
         Spacer(Modifier.height(10.dp))
@@ -123,31 +142,69 @@ private fun TasksColumn(state: DashboardState, store: AppDataStore, onRunRecipe:
             Text("Jira: ${state.message}", color = forgeColors.crit, fontSize = 12.sp)
             Spacer(Modifier.height(8.dp))
         }
+
         Column(
             modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(if (tab == BenchTab.ALL) 16.dp else 10.dp),
         ) {
-            orderedNames.forEach { name ->
-                val items = grouped[name].orEmpty().sortedWith(cmp)
-                if (items.isNotEmpty()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        BlockHeader(name, items.size)
-                        items.forEach { task ->
-                            TaskCard(
-                                task = task,
-                                store = store,
-                                isEditing = editing == task.id,
-                                onToggleEdit = { editing = if (editing == task.id) null else task.id },
-                                onSaveEdit = { store.updateLocalTask(task.id, it); editing = null },
-                                onRunRecipe = onRunRecipe,
-                            )
+            when (tab) {
+                BenchTab.ALL -> orderedNames.forEach { name ->
+                    val items = grouped[name].orEmpty().sortedWith(cmp)
+                    if (items.isNotEmpty()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            BlockHeader(name, items.size)
+                            items.forEach { task -> BenchCard(task, store, editingId, { editingId = it }, onRunRecipe) }
                         }
                     }
                 }
+                BenchTab.PRIORITY -> TaskList(priority, store, editingId, { editingId = it }, onRunRecipe)
+                BenchTab.BLOCKED -> TaskList(blocked, store, editingId, { editingId = it }, onRunRecipe)
+                BenchTab.LOCAL -> TaskList(local, store, editingId, { editingId = it }, onRunRecipe)
+                BenchTab.DONE -> TaskList(done, store, editingId, { editingId = it }, onRunRecipe)
+                BenchTab.ARCHIVE -> TaskList(archived, store, editingId, { editingId = it }, onRunRecipe)
             }
-            if (done.isNotEmpty()) DoneSection(done, store)
-            if (archived.isNotEmpty()) ArchiveSection(archived, store)
         }
+    }
+}
+
+/** A flat list of task cards with an empty-state hint. */
+@Composable
+private fun TaskList(items: List<BenchTask>, store: AppDataStore, editingId: String?, onEditing: (String?) -> Unit, onRunRecipe: (SavedRecipe) -> Unit) {
+    if (items.isEmpty()) {
+        Text("пусто", color = forgeColors.inkMuted, fontSize = 13.sp)
+    } else {
+        items.forEach { task -> BenchCard(task, store, editingId, onEditing, onRunRecipe) }
+    }
+}
+
+@Composable
+private fun BenchCard(task: BenchTask, store: AppDataStore, editingId: String?, onEditing: (String?) -> Unit, onRunRecipe: (SavedRecipe) -> Unit) {
+    TaskCard(
+        task = task,
+        store = store,
+        isEditing = editingId == task.id,
+        onToggleEdit = { onEditing(if (editingId == task.id) null else task.id) },
+        onSaveEdit = { store.updateLocalTask(task.id, it); onEditing(null) },
+        onRunRecipe = onRunRecipe,
+    )
+}
+
+@Composable
+private fun BenchTabChip(label: String, count: Int, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .then(if (selected) Modifier.background(forgeColors.ember.copy(alpha = 0.15f)).border(1.dp, forgeColors.ember, RoundedCornerShape(8.dp)) else Modifier.border(1.dp, forgeColors.border, RoundedCornerShape(8.dp)))
+            .clickable { onClick() }
+            .padding(horizontal = 11.dp, vertical = 7.dp),
+    ) {
+        Text(
+            "$label${if (count > 0) " · $count" else ""}",
+            color = if (selected) forgeColors.ember else forgeColors.inkMuted,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            maxLines = 1,
+        )
     }
 }
 
@@ -236,60 +293,6 @@ private fun RecipeControl(taskId: String, store: AppDataStore, onRun: (SavedReci
                     DropdownMenuItem(text = { Text(r.name) }, onClick = { store.setTaskRecipe(taskId, r.id); open = false; onRun(r) })
                 }
                 if (bound != null) DropdownMenuItem(text = { Text("отвязать", color = forgeColors.crit) }, onClick = { store.setTaskRecipe(taskId, null); open = false })
-            }
-        }
-    }
-}
-
-@Composable
-private fun DoneSection(done: List<BenchTask>, store: AppDataStore) {
-    var open by remember { mutableStateOf(false) }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            "Выполнено · ${done.size}   ${if (open) "▲" else "▼"}",
-            color = forgeColors.inkFaint,
-            fontSize = 12.sp,
-            fontFamily = FontFamily.Monospace,
-            modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { open = !open }.padding(vertical = 6.dp),
-        )
-        if (open) {
-            done.forEach { task ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp)).background(forgeColors.surface1).padding(horizontal = 13.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(task.title, color = forgeColors.inkMuted, fontSize = 13.sp, textDecoration = TextDecoration.LineThrough)
-                    Spacer(Modifier.weight(1f))
-                    Action("вернуть", false, forgeColors.tool) { store.toggleDone(task.id) }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ArchiveSection(archived: List<BenchTask>, store: AppDataStore) {
-    var open by remember { mutableStateOf(false) }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            "Архив · ${archived.size}   ${if (open) "▲" else "▼"}",
-            color = forgeColors.inkFaint,
-            fontSize = 12.sp,
-            fontFamily = FontFamily.Monospace,
-            modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { open = !open }.padding(vertical = 6.dp),
-        )
-        if (open) {
-            archived.forEach { task ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp)).background(forgeColors.surface1).padding(horizontal = 13.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(task.code, color = forgeColors.inkFaint, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-                    Spacer(Modifier.width(10.dp))
-                    Text(task.title, color = forgeColors.inkMuted, fontSize = 13.sp, maxLines = 1)
-                    Spacer(Modifier.weight(1f))
-                    Action("разархивировать", false, forgeColors.tool) { store.toggleArchived(task.id) }
-                }
             }
         }
     }
