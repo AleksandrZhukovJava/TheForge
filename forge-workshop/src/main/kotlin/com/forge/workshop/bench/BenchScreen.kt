@@ -189,7 +189,7 @@ private fun TaskCard(
                     Text("заблок.", color = forgeColors.crit, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.width(8.dp))
                 }
-                if (task.status != null) StatusPill(task.status)
+                if (task.status != null) StatusPill(task.status, task.statusName ?: task.status.label)
             }
             Spacer(Modifier.height(7.dp))
             if (isEditing && task.isLocal) {

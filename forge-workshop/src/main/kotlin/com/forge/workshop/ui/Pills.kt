@@ -29,7 +29,11 @@ enum class PillStatus(val label: String) {
 }
 
 @Composable
-fun StatusPill(status: PillStatus) {
+fun StatusPill(status: PillStatus) = StatusPill(status, status.label)
+
+/** Pill coloured by [status] category but showing an explicit [label] — e.g. the real Jira status name. */
+@Composable
+fun StatusPill(status: PillStatus, label: String) {
     val color = pillColor(status)
     val neutral = status == PillStatus.TODO
     Box(
@@ -41,7 +45,7 @@ fun StatusPill(status: PillStatus) {
             )
             .padding(horizontal = 8.dp, vertical = 3.dp),
     ) {
-        Text(status.label, color = color, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
+        Text(label, color = color, fontSize = 10.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
     }
 }
 

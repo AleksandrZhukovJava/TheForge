@@ -350,7 +350,7 @@ private fun RowTooltip(row: WRow) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(row.code, color = forgeColors.ember, fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.width(8.dp))
-            StatusPill(row.status)
+            StatusPill(row.status, row.statusName ?: row.status.label)
         }
         Spacer(Modifier.height(6.dp))
         Text(row.text, color = forgeColors.ink, fontSize = 13.sp)
